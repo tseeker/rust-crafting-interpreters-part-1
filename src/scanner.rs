@@ -49,15 +49,60 @@ impl Scanner {
             '+' => self.add_token(TokenType::Plus),
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
+            '!' => {
+                if self.is_match('=') {
+                    self.add_token(TokenType::BangEqual)
+                } else {
+                    self.add_token(TokenType::Bang)
+                }
+            },
+            '=' => {
+                if self.is_match('=') {
+                    self.add_token(TokenType::EqualEqual)
+                } else {
+                    self.add_token(TokenType::Equal)
+                }
+            },
+            '<' => {
+                if self.is_match('=') {
+                    self.add_token(TokenType::LessEqual)
+                } else {
+                    self.add_token(TokenType::Less)
+                }
+            },
+            '>' => {
+                if self.is_match('=') {
+                    self.add_token(TokenType::GreaterEqual)
+                } else {
+                    self.add_token(TokenType::Greater)
+                }
+            },
             ch => err_hdl.error(self.line, &format!("unexpected character '{ch}'")),
         }
     }
 
     /// Advance to the next character and return it.
     fn advance(&mut self) -> char {
-        let ch = self.source.chars().nth(self.current).unwrap();
+        let ch = self.cur_char();
         self.current += 1;
         ch
+    }
+
+    /// Consume the current character if it matches the argument.
+    fn is_match(&mut self, expected: char) -> bool {
+        if self.is_at_end() {
+            false
+        } else if self.cur_char() == expected {
+            self.current += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Read the current character.
+    fn cur_char(&self) -> char {
+        self.source.chars().nth(self.current).unwrap()
     }
 
     /// Check whether the end of the input has been reached.
