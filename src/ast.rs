@@ -45,10 +45,10 @@ impl AstDumper for ExprNode {
             Self::Grouping { expression } => {
                 format!("( {} )", expression.dump())
             }
-            Self::Litteral { value } => match &value.token_type {
-                TokenType::String(s) => s.clone(),
-                TokenType::Number(n) => format!("{n}"),
-                _ => panic!("Unexpected token type for token {:#?}", value),
+            Self::Litteral { value } => if value.is_litteral() {
+                value.lexeme.clone()
+            } else {
+                panic!("Unexpected token type for token {:#?}", value)
             },
         }
     }
