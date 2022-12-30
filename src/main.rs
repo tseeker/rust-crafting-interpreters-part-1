@@ -30,6 +30,7 @@ fn run_prompt() {
     loop {
         print!("slox> ");
         stdout.flush().unwrap();
+        buffer.clear();
         let n_read = stdin
             .read_line(&mut buffer)
             .expect("Failed to read from stdin");
