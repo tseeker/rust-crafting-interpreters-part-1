@@ -59,7 +59,7 @@ impl Scanner {
                 } else {
                     self.add_token(TokenType::Slash)
                 }
-            },
+            }
             // Things that may be either alone or followed by '='
             '!' => {
                 if self.is_match('=') {
@@ -67,33 +67,56 @@ impl Scanner {
                 } else {
                     self.add_token(TokenType::Bang)
                 }
-            },
+            }
             '=' => {
                 if self.is_match('=') {
                     self.add_token(TokenType::EqualEqual)
                 } else {
                     self.add_token(TokenType::Equal)
                 }
-            },
+            }
             '<' => {
                 if self.is_match('=') {
                     self.add_token(TokenType::LessEqual)
                 } else {
                     self.add_token(TokenType::Less)
                 }
-            },
+            }
             '>' => {
                 if self.is_match('=') {
                     self.add_token(TokenType::GreaterEqual)
                 } else {
                     self.add_token(TokenType::Greater)
                 }
-            },
+            }
+            // String litterals
+            '"' => self.string_litteral(err_hdl),
             // Handle whitespace
             ' ' | '\r' | '\t' => (),
             '\n' => self.line += 1,
             // Anything else is an error
-            ch => err_hdl.error(self.line, &format!("unexpected character '{ch}'")),
+            ch => err_hdl.error(self.line, &format!("unexpected character {:#?}", ch)),
+        }
+    }
+
+    fn string_litteral(&mut self, err_hdl: &mut ErrorHandler) {
+        loop {
+            let p = self.peek();
+            if p == '"' || self.is_at_end() {
+                break;
+            }
+            if p == '\n' {
+                self.line += 1;
+            }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            err_hdl.error(self.line, "unterminated string");
+        } else {
+            self.advance(); // Last '"'
+            let value = self.get_substring(self.start + 1, self.current - 1);
+            self.add_token(TokenType::String(value));
         }
     }
 
@@ -138,17 +161,22 @@ impl Scanner {
 
     /// Add a token to the output.
     fn add_token(&mut self, token_type: TokenType) {
-        let lexeme = self
-            .source
-            .chars()
-            .skip(self.start)
-            .take(self.current - self.start)
-            .collect::<String>();
+        let lexeme = self.get_substring(self.start, self.current);
         let token = Token {
             token_type,
             lexeme,
             line: self.line,
         };
         self.tokens.push(token)
+    }
+
+    /// Get a substring from the source.
+    fn get_substring(&self, start: usize, end: usize) -> String {
+        assert!(start <= end);
+        self.source
+            .chars()
+            .skip(start)
+            .take(end - start)
+            .collect::<String>()
     }
 }
