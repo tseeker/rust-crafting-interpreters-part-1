@@ -1,5 +1,6 @@
 mod ast;
 mod errors;
+mod parser;
 mod scanner;
 mod tokens;
 
@@ -10,16 +11,22 @@ use std::{
 };
 
 use errors::ErrorHandler;
+use parser::Parser;
 use scanner::Scanner;
 
 /// Execute a script.
 fn run(source: String) -> ErrorHandler {
     let mut error_handler = ErrorHandler::default();
+
     let scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens(&mut error_handler);
-    for token in tokens {
+
+    for token in tokens.iter() {
         println!("{:#?}", token);
     }
+
+    let _parser = Parser::new(tokens);
+
     error_handler
 }
 
