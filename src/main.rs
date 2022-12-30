@@ -1,3 +1,5 @@
+mod errors;
+mod scanner;
 mod tokens;
 
 use std::{
@@ -6,40 +8,17 @@ use std::{
     process::ExitCode,
 };
 
-/// Error handler. Can be used to print error messages; will also retain the
-/// current error status.
-#[derive(Default, Debug)]
-struct ErrorHandler {
-    had_error: bool,
-}
-
-impl ErrorHandler {
-    /// Check whether this handler reported an error.
-    pub fn had_error(&self) -> bool {
-        self.had_error
-    }
-
-    /// Report an error.
-    pub fn error(&mut self, line: usize, message: &str) {
-        self.report(line, "", message)
-    }
-
-    fn report(&mut self, line: usize, pos: &str, message: &str) {
-        self.had_error = true;
-        println!("[line {line}] Error{pos}: {message}")
-    }
-}
+use errors::ErrorHandler;
+use scanner::Scanner;
 
 /// Execute a script.
-fn run(_source: String) -> ErrorHandler {
-    let error_handler = ErrorHandler::default();
-    /*
+fn run(source: String) -> ErrorHandler {
+    let mut error_handler = ErrorHandler::default();
     let scanner = Scanner::new(source);
-    let tokens = scanner.scan_tokens();
+    let tokens = scanner.scan_tokens(&mut error_handler);
     for token in tokens {
-        println!("{}", token);
+        println!("{:#?}", token);
     }
-    */
     error_handler
 }
 
