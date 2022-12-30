@@ -1,3 +1,5 @@
+use crate::tokens::{Token, TokenType};
+
 /// Error handler. Can be used to print error messages; will also retain the
 /// current error status.
 #[derive(Default, Debug)]
@@ -19,5 +21,34 @@ impl ErrorHandler {
     fn report(&mut self, line: usize, pos: &str, message: &str) {
         self.had_error = true;
         println!("[line {line}] Error{pos}: {message}")
+    }
+}
+
+/// An error that occurred while trying to parse the input once it has been
+/// scanned.
+#[derive(Debug, Clone)]
+pub struct ParserError {
+    line: usize,
+    pos: String,
+    message: String,
+}
+
+impl ParserError {
+    /// Initialize a parser error.
+    pub fn new(token: &Token, message: &str) -> Self {
+        Self {
+            line: token.line,
+            pos: if token.token_type == TokenType::EOF {
+                String::from(" at end of input")
+            } else {
+                format!("at '{}'", token.lexeme)
+            },
+            message: String::from(message),
+        }
+    }
+
+    /// Report the error to an error handler.
+    pub fn report(&self, err_hdl: &mut ErrorHandler) {
+        err_hdl.report(self.line, &self.pos, &self.message);
     }
 }
