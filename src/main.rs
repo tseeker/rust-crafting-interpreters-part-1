@@ -10,6 +10,7 @@ use std::{
     process::ExitCode,
 };
 
+use ast::AstDumper;
 use errors::ErrorHandler;
 use parser::Parser;
 use scanner::Scanner;
@@ -25,7 +26,13 @@ fn run(source: String) -> ErrorHandler {
         println!("{:#?}", token);
     }
 
-    let _parser = Parser::new(tokens);
+    let parser = Parser::new(tokens);
+    match parser.parse(&mut error_handler) {
+        None => (),
+        Some(ast) => {
+            println!("AST generated ! {}", ast.dump())
+        }
+    }
 
     error_handler
 }
