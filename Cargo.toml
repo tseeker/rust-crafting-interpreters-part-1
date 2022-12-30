@@ -1,0 +1,7 @@
+[package]
+name = "slox"
+description = "Slow Lox - Part 1 of R. Nystrom's Crafting Interpreters book"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
