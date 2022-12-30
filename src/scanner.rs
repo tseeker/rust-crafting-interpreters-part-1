@@ -85,6 +85,8 @@ impl Scanner {
                     while self.peek() != '\n' && !self.is_at_end() {
                         self.current += 1;
                     }
+                } else if self.is_match('*') {
+                    self.block_comment(err_hdl);
                 } else {
                     self.add_token(TokenType::Slash)
                 }
@@ -192,6 +194,32 @@ impl Scanner {
         match KEYWORDS.get(&word as &str) {
             Some(tt) => self.add_token(tt.clone()),
             None => self.add_token(TokenType::Identifier(word)),
+        }
+    }
+
+    /// Read (and ignore) a block comment. Block comments may be nested.
+    fn block_comment(&mut self, err_hdl: &mut ErrorHandler) {
+        let mut depth = 1;
+        loop {
+            if self.is_at_end() {
+                err_hdl.error(self.line, "unterminated block comment");
+                return
+            }
+
+            let cur = self.advance();
+            let next = self.peek();
+            if cur == '*' && next == '/' {
+                depth -= 1;
+                self.current += 1;
+                if depth == 0 {
+                    return;
+                }
+            } else if cur == '/' && next == '*' {
+                depth += 1;
+                self.current += 1;
+            } else if cur == '\n' {
+                self.line += 1;
+            }
         }
     }
 
