@@ -39,6 +39,7 @@ impl Scanner {
     /// Read the next token from the input
     fn scan_token(&mut self, err_hdl: &mut ErrorHandler) {
         match self.advance() {
+            // Single-character tokens
             '(' => self.add_token(TokenType::LeftParen),
             ')' => self.add_token(TokenType::RightParen),
             '{' => self.add_token(TokenType::LeftBrace),
@@ -49,6 +50,17 @@ impl Scanner {
             '+' => self.add_token(TokenType::Plus),
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
+            // Slash is a special case as it may be a line comment
+            '/' => {
+                if self.is_match('/') {
+                    while self.peek() != '\n' && !self.is_at_end() {
+                        self.advance();
+                    }
+                } else {
+                    self.add_token(TokenType::Slash)
+                }
+            },
+            // Things that may be either alone or followed by '='
             '!' => {
                 if self.is_match('=') {
                     self.add_token(TokenType::BangEqual)
@@ -77,6 +89,10 @@ impl Scanner {
                     self.add_token(TokenType::Greater)
                 }
             },
+            // Handle whitespace
+            ' ' | '\r' | '\t' => (),
+            '\n' => self.line += 1,
+            // Anything else is an error
             ch => err_hdl.error(self.line, &format!("unexpected character '{ch}'")),
         }
     }
@@ -102,6 +118,16 @@ impl Scanner {
             true
         } else {
             false
+        }
+    }
+
+    /// Returns the current character, or a NULL character if the end has been
+    /// reached.
+    fn peek(&self) -> char {
+        if self.is_at_end() {
+            '\0'
+        } else {
+            self.cur_char()
         }
     }
 
