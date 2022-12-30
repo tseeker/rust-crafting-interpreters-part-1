@@ -54,7 +54,7 @@ impl Scanner {
             '/' => {
                 if self.is_match('/') {
                     while self.peek() != '\n' && !self.is_at_end() {
-                        self.advance();
+                        self.current += 1;
                     }
                 } else {
                     self.add_token(TokenType::Slash)
@@ -91,14 +91,19 @@ impl Scanner {
             }
             // String litterals
             '"' => self.string_litteral(err_hdl),
+            // Numbers
+            '0'..='9' => self.number(err_hdl),
             // Handle whitespace
             ' ' | '\r' | '\t' => (),
             '\n' => self.line += 1,
             // Anything else is an error
-            ch => err_hdl.error(self.line, &format!("unexpected character {:#?}", ch)),
+            ch => {
+                err_hdl.error(self.line, &format!("unexpected character {:#?}", ch));
+            }
         }
     }
 
+    /// Read the rest of a string litteral
     fn string_litteral(&mut self, err_hdl: &mut ErrorHandler) {
         loop {
             let p = self.peek();
@@ -108,16 +113,45 @@ impl Scanner {
             if p == '\n' {
                 self.line += 1;
             }
-            self.advance();
+            self.current += 1;
         }
 
         if self.is_at_end() {
             err_hdl.error(self.line, "unterminated string");
         } else {
-            self.advance(); // Last '"'
+            self.current += 1; // Last '"'
             let value = self.get_substring(self.start + 1, self.current - 1);
             self.add_token(TokenType::String(value));
         }
+    }
+
+    /// Read the rest of a number.
+    fn number(&mut self, err_hdl: &mut ErrorHandler) {
+        while self.peek().is_digit(10) {
+            self.current += 1;
+        }
+        if self.peek() == '.' && self.peek_next().is_digit(10) {
+            self.current += 1;
+            while self.peek().is_digit(10) {
+                self.current += 1;
+            }
+        }
+
+        let tok_string = self.get_substring(self.start, self.current);
+        match tok_string.parse::<f64>() {
+            Err(e) => {
+                err_hdl.error(
+                    self.line,
+                    &format!(
+                        "Could not parse {} as a floating point number: {:?}",
+                        tok_string, e
+                    ),
+                );
+            }
+            Ok(value) => {
+                self.add_token(TokenType::Number(value));
+            }
+        };
     }
 
     /// Check whether the end of the input has been reached.
@@ -151,6 +185,16 @@ impl Scanner {
             '\0'
         } else {
             self.cur_char()
+        }
+    }
+
+    /// Returns the next character, or a NULL character if the end has been
+    /// reached.
+    fn peek_next(&self) -> char {
+        if self.current + 1 >= self.source.chars().count() {
+            '\0'
+        } else {
+            self.source.chars().nth(self.current + 1).unwrap()
         }
     }
 
