@@ -208,7 +208,7 @@ impl Scanner {
         loop {
             if self.is_at_end() {
                 err_hdl.error(self.line, "unterminated block comment");
-                return
+                return;
             }
 
             let cur = self.advance();
