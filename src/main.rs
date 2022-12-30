@@ -1,10 +1,16 @@
-use std::{env, fs, io::{self, Write}, process::ExitCode};
+mod tokens;
+
+use std::{
+    env, fs,
+    io::{self, Write},
+    process::ExitCode,
+};
 
 /// Error handler. Can be used to print error messages; will also retain the
 /// current error status.
 #[derive(Default, Debug)]
 struct ErrorHandler {
-    had_error: bool
+    had_error: bool,
 }
 
 impl ErrorHandler {
@@ -45,7 +51,9 @@ fn run_prompt() {
     loop {
         print!("slox> ");
         stdout.flush().unwrap();
-        let n_read = stdin.read_line(&mut buffer).expect("Failed to read from stdin");
+        let n_read = stdin
+            .read_line(&mut buffer)
+            .expect("Failed to read from stdin");
         let _ = match n_read {
             0 => return,
             _ => run(buffer.clone()),
