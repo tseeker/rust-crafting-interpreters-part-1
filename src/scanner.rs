@@ -81,6 +81,11 @@ impl Scanner {
         }
     }
 
+    /// Check whether the end of the input has been reached.
+    fn is_at_end(&self) -> bool {
+        self.current >= self.len
+    }
+
     /// Advance to the next character and return it.
     fn advance(&mut self) -> char {
         let ch = self.cur_char();
@@ -103,11 +108,6 @@ impl Scanner {
     /// Read the current character.
     fn cur_char(&self) -> char {
         self.source.chars().nth(self.current).unwrap()
-    }
-
-    /// Check whether the end of the input has been reached.
-    fn is_at_end(&self) -> bool {
-        self.current >= self.len
     }
 
     /// Add a token to the output.
