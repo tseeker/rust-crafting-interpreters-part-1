@@ -1,4 +1,4 @@
-use crate::ErrorHandler;
+use crate::{tokens::TokenType, ErrorHandler};
 
 use super::tokens::Token;
 
@@ -8,24 +8,76 @@ pub struct Scanner {
     tokens: Vec<Token>,
     start: usize,
     current: usize,
+    len: usize,
     line: usize,
 }
 
 impl Scanner {
     /// Initialize a scanner by specifying the source code to scan.
     pub fn new(source: String) -> Scanner {
-        Scanner{
-            source: source,
+        let len = source.chars().count();
+        Scanner {
+            source,
             tokens: Vec::new(),
             start: 0,
             current: 0,
+            len,
             line: 1,
         }
     }
 
     /// Scan the source code, generating the list of tokens and returning it.
     /// The scanner itself is destroyed once the process is complete.
-    pub fn scan_tokens(self, err_hdl: &mut ErrorHandler) -> Vec<Token> {
+    pub fn scan_tokens(mut self, err_hdl: &mut ErrorHandler) -> Vec<Token> {
+        while !self.is_at_end() {
+            self.start = self.current;
+            self.scan_token(err_hdl);
+        }
         self.tokens
+    }
+
+    /// Read the next token from the input
+    fn scan_token(&mut self, err_hdl: &mut ErrorHandler) {
+        match self.advance() {
+            '(' => self.add_token(TokenType::LeftParen),
+            ')' => self.add_token(TokenType::RightParen),
+            '{' => self.add_token(TokenType::LeftBrace),
+            '}' => self.add_token(TokenType::RightBrace),
+            ',' => self.add_token(TokenType::Comma),
+            '.' => self.add_token(TokenType::Dot),
+            '-' => self.add_token(TokenType::Minus),
+            '+' => self.add_token(TokenType::Plus),
+            ';' => self.add_token(TokenType::Semicolon),
+            '*' => self.add_token(TokenType::Star),
+            ch => err_hdl.error(self.line, &format!("unexpected character '{ch}'")),
+        }
+    }
+
+    /// Advance to the next character and return it.
+    fn advance(&mut self) -> char {
+        let ch = self.source.chars().nth(self.current).unwrap();
+        self.current += 1;
+        ch
+    }
+
+    /// Check whether the end of the input has been reached.
+    fn is_at_end(&self) -> bool {
+        self.current >= self.len
+    }
+
+    /// Add a token to the output.
+    fn add_token(&mut self, token_type: TokenType) {
+        let lexeme = self
+            .source
+            .chars()
+            .skip(self.start)
+            .take(self.current - self.start)
+            .collect::<String>();
+        let token = Token {
+            token_type,
+            lexeme,
+            line: self.line,
+        };
+        self.tokens.push(token)
     }
 }
