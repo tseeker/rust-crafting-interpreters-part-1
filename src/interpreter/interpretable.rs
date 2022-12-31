@@ -7,9 +7,12 @@ use crate::{
 
 use super::Environment;
 
+/// A result returned by some part of the interpreter.
+pub type InterpreterResult = Result<Value, InterpreterError>;
+
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
-    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError>;
+    fn interprete(&self, environment: &mut Environment) -> InterpreterResult;
 }
 
 /// Evaluate an interpretable, returning its value.
@@ -29,7 +32,7 @@ pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<V
  * ----------------------------- */
 
 impl Interpretable for ast::ProgramNode {
-    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
+    fn interprete(&self, environment: &mut Environment) -> InterpreterResult {
         for stmt in self.0.iter() {
             stmt.interprete(environment)?;
         }
@@ -42,22 +45,43 @@ impl Interpretable for ast::ProgramNode {
  * ------------------------------- */
 
 impl Interpretable for ast::StmtNode {
-    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
+    fn interprete(&self, environment: &mut Environment) -> InterpreterResult {
         match self {
             ast::StmtNode::Expression(expr) => expr.interprete(environment),
-            ast::StmtNode::Print(expr) => {
-                let value = expr.interprete(environment)?;
-                let output = match value {
-                    Value::Nil => String::from("nil"),
-                    Value::Boolean(true) => String::from("true"),
-                    Value::Boolean(false) => String::from("false"),
-                    Value::Number(n) => n.to_string(),
-                    Value::String(s) => s,
-                };
-                println!("{}", output);
-                Ok(Value::Nil)
-            }
+            ast::StmtNode::Print(expr) => self.on_print(environment, expr),
+            ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(environment, name, expr),
         }
+    }
+}
+
+impl ast::StmtNode {
+    /// Handle the `print` statement.
+    fn on_print(&self, environment: &mut Environment, expr: &ast::ExprNode) -> InterpreterResult {
+        let value = expr.interprete(environment)?;
+        let output = match value {
+            Value::Nil => String::from("nil"),
+            Value::Boolean(true) => String::from("true"),
+            Value::Boolean(false) => String::from("false"),
+            Value::Number(n) => n.to_string(),
+            Value::String(s) => s,
+        };
+        println!("{}", output);
+        Ok(Value::Nil)
+    }
+
+    /// Handle a variable declaration.
+    fn on_var_decl(
+        &self,
+        environment: &mut Environment,
+        name: &Token,
+        initializer: &Option<ast::ExprNode>,
+    ) -> InterpreterResult {
+        let value = match initializer {
+            Some(expr) => expr.interprete(environment)?,
+            None => Value::Nil,
+        };
+        environment.define(name.lexeme.clone(), value);
+        Ok(Value::Nil)
     }
 }
 
@@ -66,7 +90,7 @@ impl Interpretable for ast::StmtNode {
  * -------------------------------- */
 
 impl Interpretable for ast::ExprNode {
-    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
+    fn interprete(&self, environment: &mut Environment) -> InterpreterResult {
         match self {
             ast::ExprNode::Binary {
                 left,
@@ -76,6 +100,7 @@ impl Interpretable for ast::ExprNode {
             ast::ExprNode::Unary { operator, right } => self.on_unary(environment, operator, right),
             ast::ExprNode::Grouping { expression } => expression.interprete(environment),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
+            ast::ExprNode::Variable { name } => environment.get(name),
         }
     }
 }
@@ -88,7 +113,7 @@ impl ast::ExprNode {
         left: &ast::ExprNode,
         operator: &Token,
         right: &ast::ExprNode,
-    ) -> Result<Value, InterpreterError> {
+    ) -> InterpreterResult {
         let left_value = left.interprete(environment)?;
         let right_value = right.interprete(environment)?;
         match operator.token_type {
@@ -151,7 +176,12 @@ impl ast::ExprNode {
     }
 
     /// Evaluate an unary operator.
-    fn on_unary(&self, environment: &mut Environment, operator: &Token, right: &ast::ExprNode) -> Result<Value, InterpreterError> {
+    fn on_unary(
+        &self,
+        environment: &mut Environment,
+        operator: &Token,
+        right: &ast::ExprNode,
+    ) -> InterpreterResult {
         let right_value = right.interprete(environment)?;
         match operator.token_type {
             TokenType::Minus => {
@@ -172,7 +202,7 @@ impl ast::ExprNode {
     }
 
     /// Evaluate a litteral.
-    fn on_litteral(&self, value: &Token) -> Result<Value, InterpreterError> {
+    fn on_litteral(&self, value: &Token) -> InterpreterResult {
         match &value.token_type {
             TokenType::Nil => Ok(Value::Nil),
             TokenType::True => Ok(Value::Boolean(true)),
