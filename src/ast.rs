@@ -17,6 +17,8 @@ pub enum StmtNode {
     Expression(ExprNode),
     /// The print statement
     Print(ExprNode),
+    /// A block containing multiple statements.
+    Block(Vec<Box<StmtNode>>),
 }
 
 /// An AST node that represents an expression.
@@ -75,6 +77,11 @@ impl AstDumper for StmtNode {
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
             Self::Expression(expr) => format!("( {} )", expr.dump()),
             Self::Print(expr) => format!("(print {})", expr.dump()),
+            Self::Block(stmts) => stmts
+                .iter()
+                .map(|s| s.dump())
+                .collect::<Vec<String>>()
+                .join(" "),
         }
     }
 }
