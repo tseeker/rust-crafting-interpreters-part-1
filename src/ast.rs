@@ -1,5 +1,22 @@
 use crate::tokens::Token;
 
+/* --------- *
+ * AST nodes *
+ * --------- */
+
+/// The AST node for the program
+#[derive(Default, Debug, Clone)]
+pub struct ProgramNode(Vec<StmtNode>);
+
+/// An AST node that represents a statement.
+#[derive(Debug, Clone)]
+pub enum StmtNode {
+    /// An single expression
+    Expression(ExprNode),
+    /// The print statement
+    Print(ExprNode),
+}
+
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
@@ -31,6 +48,25 @@ pub enum ExprNode {
 pub trait AstDumper {
     /// Dump the node as a string.
     fn dump(&self) -> String;
+}
+
+impl AstDumper for ProgramNode {
+    fn dump(&self) -> String {
+        self.0
+            .iter()
+            .map(|node| node.dump())
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
+}
+
+impl AstDumper for StmtNode {
+    fn dump(&self) -> String {
+        match self {
+            Self::Expression(expr) => format!("( {} )", expr.dump()),
+            Self::Print(expr) => format!("(print {})", expr.dump()),
+        }
+    }
 }
 
 impl AstDumper for ExprNode {
