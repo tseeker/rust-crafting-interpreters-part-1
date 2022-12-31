@@ -105,7 +105,7 @@ impl Parser {
             &TokenType::Semicolon,
             "expected ';' after variable declaration",
         )?;
-        Ok(ast::StmtNode::VarDecl(name.lexeme, initializer))
+        Ok(ast::StmtNode::VarDecl(name, initializer))
     }
 
     /// Parse the following rule:
