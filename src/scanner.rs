@@ -131,7 +131,7 @@ impl Scanner {
             ' ' | '\r' | '\t' => (),
             '\n' => self.line += 1,
             // Numbers
-            ch if ch.is_digit(10) => self.number(err_hdl),
+            ch if ch.is_ascii_digit() => self.number(err_hdl),
             // Identifiers
             ch if ch.is_ascii_alphabetic() => self.identifier(),
             // Anything else is an error
@@ -163,12 +163,12 @@ impl Scanner {
 
     /// Read the rest of a number.
     fn number(&mut self, err_hdl: &mut ErrorHandler) {
-        while self.peek().is_digit(10) {
+        while self.peek().is_ascii_digit() {
             self.current += 1;
         }
-        if self.peek() == '.' && self.peek_next().is_digit(10) {
+        if self.peek() == '.' && self.peek_next().is_ascii_digit() {
             self.current += 1;
-            while self.peek().is_digit(10) {
+            while self.peek().is_ascii_digit() {
                 self.current += 1;
             }
         }
