@@ -5,14 +5,17 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
+use super::Environment;
+
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
-    fn interprete(&self) -> Result<Value, InterpreterError>;
+    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError>;
 }
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
-    match ast.interprete() {
+    let mut env = Environment::default();
+    match ast.interprete(&mut env) {
         Ok(v) => Some(v),
         Err(e) => {
             e.report(err_hdl);
@@ -26,9 +29,9 @@ pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<V
  * ----------------------------- */
 
 impl Interpretable for ast::ProgramNode {
-    fn interprete(&self) -> Result<Value, InterpreterError> {
+    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
         for stmt in self.0.iter() {
-            stmt.interprete()?;
+            stmt.interprete(environment)?;
         }
         Ok(Value::Nil)
     }
@@ -39,11 +42,11 @@ impl Interpretable for ast::ProgramNode {
  * ------------------------------- */
 
 impl Interpretable for ast::StmtNode {
-    fn interprete(&self) -> Result<Value, InterpreterError> {
+    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
         match self {
-            ast::StmtNode::Expression(expr) => expr.interprete(),
+            ast::StmtNode::Expression(expr) => expr.interprete(environment),
             ast::StmtNode::Print(expr) => {
-                let value = expr.interprete()?;
+                let value = expr.interprete(environment)?;
                 let output = match value {
                     Value::Nil => String::from("nil"),
                     Value::Boolean(true) => String::from("true"),
@@ -63,15 +66,15 @@ impl Interpretable for ast::StmtNode {
  * -------------------------------- */
 
 impl Interpretable for ast::ExprNode {
-    fn interprete(&self) -> Result<Value, InterpreterError> {
+    fn interprete(&self, environment: &mut Environment) -> Result<Value, InterpreterError> {
         match self {
             ast::ExprNode::Binary {
                 left,
                 operator,
                 right,
-            } => self.on_binary(left, operator, right),
-            ast::ExprNode::Unary { operator, right } => self.on_unary(operator, right),
-            ast::ExprNode::Grouping { expression } => expression.interprete(),
+            } => self.on_binary(environment, left, operator, right),
+            ast::ExprNode::Unary { operator, right } => self.on_unary(environment, operator, right),
+            ast::ExprNode::Grouping { expression } => expression.interprete(environment),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
         }
     }
@@ -81,12 +84,13 @@ impl ast::ExprNode {
     /// Evaluate a binary operator.
     fn on_binary(
         &self,
+        environment: &mut Environment,
         left: &ast::ExprNode,
         operator: &Token,
         right: &ast::ExprNode,
     ) -> Result<Value, InterpreterError> {
-        let left_value = left.interprete()?;
-        let right_value = right.interprete()?;
+        let left_value = left.interprete(environment)?;
+        let right_value = right.interprete(environment)?;
         match operator.token_type {
             TokenType::Plus => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b)),
@@ -147,8 +151,8 @@ impl ast::ExprNode {
     }
 
     /// Evaluate an unary operator.
-    fn on_unary(&self, operator: &Token, right: &ast::ExprNode) -> Result<Value, InterpreterError> {
-        let right_value = right.interprete()?;
+    fn on_unary(&self, environment: &mut Environment, operator: &Token, right: &ast::ExprNode) -> Result<Value, InterpreterError> {
+        let right_value = right.interprete(environment)?;
         match operator.token_type {
             TokenType::Minus => {
                 if let Value::Number(n) = right_value {
