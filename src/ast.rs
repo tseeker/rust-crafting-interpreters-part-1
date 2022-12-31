@@ -1,4 +1,4 @@
-use crate::tokens::{Token, TokenType};
+use crate::tokens::Token;
 
 /// This trait should be implemented by nodes to allow AST dumps.
 pub trait AstDumper {
@@ -45,11 +45,13 @@ impl AstDumper for ExprNode {
             Self::Grouping { expression } => {
                 format!("( {} )", expression.dump())
             }
-            Self::Litteral { value } => if value.is_litteral() {
-                value.lexeme.clone()
-            } else {
-                panic!("Unexpected token type for token {:#?}", value)
-            },
+            Self::Litteral { value } => {
+                if value.is_litteral() {
+                    value.lexeme.clone()
+                } else {
+                    panic!("Unexpected token type for token {:#?}", value)
+                }
+            }
         }
     }
 }
