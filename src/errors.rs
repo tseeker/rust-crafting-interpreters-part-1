@@ -41,7 +41,7 @@ impl ParserError {
             pos: if token.token_type == TokenType::Eof {
                 String::from(" at end of input")
             } else {
-                format!("at '{}'", token.lexeme)
+                format!(" at '{}'", token.lexeme)
             },
             message: String::from(message),
         }
