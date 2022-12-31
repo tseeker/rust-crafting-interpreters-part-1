@@ -6,7 +6,7 @@ use crate::tokens::Token;
 
 /// The AST node for the program
 #[derive(Default, Debug, Clone)]
-pub struct ProgramNode(Vec<StmtNode>);
+pub struct ProgramNode(pub Vec<StmtNode>);
 
 /// An AST node that represents a statement.
 #[derive(Debug, Clone)]
