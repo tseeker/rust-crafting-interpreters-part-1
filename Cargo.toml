@@ -6,3 +6,8 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.4.0"
+
+[features]
+debug_output = ["dump_tokens", "dump_ast"]
+dump_tokens = []
+dump_ast = []

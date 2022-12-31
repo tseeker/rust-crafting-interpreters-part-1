@@ -11,6 +11,7 @@ use std::{
     process::ExitCode,
 };
 
+#[cfg(feature = "dump_ast")]
 use ast::AstDumper;
 use errors::{ErrorHandler, ErrorType};
 use interpreter::evaluate;
@@ -24,6 +25,7 @@ fn run(source: String) -> ErrorHandler {
     let scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens(&mut error_handler);
 
+    #[cfg(feature = "dump_tokens")]
     for token in tokens.iter() {
         println!("{:#?}", token);
     }
@@ -32,10 +34,9 @@ fn run(source: String) -> ErrorHandler {
     match parser.parse(&mut error_handler) {
         None => (),
         Some(ast) => {
+            #[cfg(feature = "dump_ast")]
             println!("AST generated ! {}", ast.dump());
-            if let Some(v) = evaluate(&mut error_handler, &ast) {
-                println!("Final evaluated value: {:?}", v)
-            }
+            evaluate(&mut error_handler, &ast);
         }
     }
 
