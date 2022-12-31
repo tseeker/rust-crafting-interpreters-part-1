@@ -52,3 +52,26 @@ impl ParserError {
         err_hdl.report(self.line, &self.pos, &self.message);
     }
 }
+
+
+/// An error that occurred while trying to evaluate the code.
+#[derive(Debug, Clone)]
+pub struct InterpreterError {
+    line: usize,
+    message: String,
+}
+
+impl InterpreterError {
+    /// Initialize an interpreter error.
+    pub fn new(token: &Token, message: &str) -> Self {
+        Self {
+            line: token.line,
+            message: String::from(message),
+        }
+    }
+
+    /// Report the error to an error handler.
+    pub fn report(&self, err_hdl: &mut ErrorHandler) {
+        err_hdl.report(self.line, "", &self.message);
+    }
+}
