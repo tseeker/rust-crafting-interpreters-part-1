@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use lazy_static::lazy_static;
 
 use crate::{
+    errors::ErrorType,
     tokens::{Token, TokenType},
     ErrorHandler,
 };
@@ -135,7 +136,11 @@ impl Scanner {
             // Identifiers
             ch if ch.is_ascii_alphabetic() => self.identifier(),
             // Anything else is an error
-            ch => err_hdl.error(self.line, &format!("unexpected character {:#?}", ch)),
+            ch => err_hdl.error(
+                ErrorType::Parse,
+                self.line,
+                &format!("unexpected character {:#?}", ch),
+            ),
         }
     }
 
@@ -153,7 +158,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            err_hdl.error(self.line, "unterminated string");
+            err_hdl.error(ErrorType::Parse, self.line, "unterminated string");
         } else {
             self.current += 1; // Last '"'
             let value = self.get_substring(self.start + 1, self.current - 1);
@@ -177,6 +182,7 @@ impl Scanner {
         match tok_string.parse::<f64>() {
             Err(e) => {
                 err_hdl.error(
+                    ErrorType::Parse,
                     self.line,
                     &format!(
                         "Could not parse {} as a floating point number: {:?}",
@@ -207,7 +213,7 @@ impl Scanner {
         let mut depth = 1;
         loop {
             if self.is_at_end() {
-                err_hdl.error(self.line, "unterminated block comment");
+                err_hdl.error(ErrorType::Parse, self.line, "unterminated block comment");
                 return;
             }
 

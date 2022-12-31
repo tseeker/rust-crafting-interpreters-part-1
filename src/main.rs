@@ -12,7 +12,7 @@ use std::{
 };
 
 use ast::AstDumper;
-use errors::ErrorHandler;
+use errors::{ErrorHandler, ErrorType};
 use interpreter::evaluate;
 use parser::Parser;
 use scanner::Scanner;
@@ -72,13 +72,16 @@ fn main() -> Result<(), ExitCode> {
     let args: Vec<String> = env::args().skip(1).collect();
     let n_args = args.len();
     if n_args == 0 {
-        run_prompt()
+        run_prompt();
+        Ok(())
     } else if n_args == 1 {
-        if run_file(&args[0]).had_error() {
-            return Err(ExitCode::from(65));
+        match run_file(&args[0]).had_error() {
+            None => Ok(()),
+            Some(ErrorType::Parse) => Err(ExitCode::from(65)),
+            Some(ErrorType::Runtime) => Err(ExitCode::from(70)),
         }
     } else {
         println!("Usage: slox [script]");
+        Err(ExitCode::from(1))
     }
-    Ok(())
 }
