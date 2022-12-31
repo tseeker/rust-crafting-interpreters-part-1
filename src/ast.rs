@@ -1,11 +1,5 @@
 use crate::tokens::Token;
 
-/// This trait should be implemented by nodes to allow AST dumps.
-pub trait AstDumper {
-    /// Dump the node as a string.
-    fn dump(&self) -> String;
-}
-
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
@@ -27,6 +21,16 @@ pub enum ExprNode {
 
     /// A litteral value, represented by the corresponding token.
     Litteral { value: Token },
+}
+
+/* -------------------------------- *
+ * Dumper trait and implementations *
+ * -------------------------------- */
+
+/// This trait should be implemented by nodes to allow AST dumps.
+pub trait AstDumper {
+    /// Dump the node as a string.
+    fn dump(&self) -> String;
 }
 
 impl AstDumper for ExprNode {
