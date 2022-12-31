@@ -209,7 +209,7 @@ impl Parser {
     /// Check whether the end of token stream has been reached by checking
     /// for the `EOF` token.
     fn is_at_end(&self) -> bool {
-        self.peek().token_type == TokenType::EOF
+        self.peek().token_type == TokenType::Eof
     }
 
     /// Return a reference to the current token in the stream.

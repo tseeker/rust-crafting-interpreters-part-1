@@ -63,7 +63,7 @@ impl Scanner {
             self.scan_token(err_hdl);
         }
         self.tokens.push(Token {
-            token_type: TokenType::EOF,
+            token_type: TokenType::Eof,
             lexeme: String::from(""),
             line: self.line,
         });

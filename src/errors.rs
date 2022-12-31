@@ -38,7 +38,7 @@ impl ParserError {
     pub fn new(token: &Token, message: &str) -> Self {
         Self {
             line: token.line,
-            pos: if token.token_type == TokenType::EOF {
+            pos: if token.token_type == TokenType::Eof {
                 String::from(" at end of input")
             } else {
                 format!("at '{}'", token.lexeme)

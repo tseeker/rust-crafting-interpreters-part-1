@@ -43,7 +43,7 @@ pub enum TokenType {
     Var,
     While,
 
-    EOF,
+    Eof,
 }
 
 /// Full information about a token.
