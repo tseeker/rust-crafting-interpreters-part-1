@@ -127,7 +127,7 @@ impl Parser {
     fn parse_unary(&mut self) -> Result<ast::ExprNode, ParserError> {
         if let Some(operator) = self.expect(&[TokenType::Bang, TokenType::Minus]) {
             Ok(ast::ExprNode::Unary {
-                operator: operator.clone(),
+                operator,
                 right: Box::new(self.parse_unary()?),
             })
         } else {
