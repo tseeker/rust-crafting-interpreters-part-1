@@ -92,6 +92,10 @@ impl ast::StmtNode {
 impl Interpretable for ast::ExprNode {
     fn interprete(&self, environment: &mut Environment) -> InterpreterResult {
         match self {
+            ast::ExprNode::Assignment{ name, value} => {
+                let value = value.interprete(environment)?;
+                environment.assign(name, value)
+            }
             ast::ExprNode::Binary {
                 left,
                 operator,

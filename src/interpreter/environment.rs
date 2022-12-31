@@ -28,10 +28,10 @@ impl Environment {
     }
 
     /// Assign a value to an existing variable.
-    pub fn assign(&mut self, name: &Token, value: &Value) -> Result<(), InterpreterError> {
+    pub fn assign(&mut self, name: &Token, value: Value) -> InterpreterResult {
         if self.values.contains_key(&name.lexeme as &str) {
-            self.values.insert(name.lexeme.clone(), value.clone());
-            Ok(())
+            self.values.insert(name.lexeme.clone(), value);
+            Ok(Value::Nil)
         } else {
             Err(InterpreterError::new(
                 name,
