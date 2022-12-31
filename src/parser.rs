@@ -11,6 +11,9 @@ pub struct Parser {
     current: usize,
 }
 
+/// The result of one of the parser's functions.
+type ParserResult<T> = Result<T, ParserError>;
+
 impl Parser {
     /// Initialize the parser.
     pub fn new(tokens: Vec<Token>) -> Self {
@@ -58,7 +61,7 @@ impl Parser {
     /// ```
     /// program := statement*
     /// ```
-    fn parse_program(&mut self) -> Result<ast::ProgramNode, ParserError> {
+    fn parse_program(&mut self) -> ParserResult<ast::ProgramNode> {
         let mut stmts: Vec<ast::StmtNode> = Vec::new();
         while !self.is_at_end() {
             let stmt = self.parse_statement()?;
@@ -73,7 +76,7 @@ impl Parser {
     /// statement := "print" expression ";"
     /// statement := declaration ";"
     /// ```
-    fn parse_statement(&mut self) -> Result<ast::StmtNode, ParserError> {
+    fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
             self.parse_declaration()
         } else if self.expect(&[TokenType::Print]).is_some() {
@@ -92,7 +95,7 @@ impl Parser {
     /// declaration := "var" IDENTIFIER ";"
     /// declaration := "var" IDENTIFIER "=" expression ";"
     /// ```
-    fn parse_declaration(&mut self) -> Result<ast::StmtNode, ParserError> {
+    fn parse_declaration(&mut self) -> ParserResult<ast::StmtNode> {
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
             _ => return Err(ParserError::new(self.peek(), "expected variable name")),
@@ -110,10 +113,32 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
-    /// expression := equality
+    /// expression := assignment
     /// ```
-    fn parse_expression(&mut self) -> Result<ast::ExprNode, ParserError> {
-        self.parse_equality()
+    fn parse_expression(&mut self) -> ParserResult<ast::ExprNode> {
+        self.parse_assignment()
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// assignment := IDENTIFIER "=" equality
+    /// assignment := equality
+    /// ```
+    fn parse_assignment(&mut self) -> ParserResult<ast::ExprNode> {
+        let expr = self.parse_equality()?;
+        if let Some(equals) = self.expect(&[TokenType::Equal]) {
+            let value = self.parse_assignment()?;
+            if let ast::ExprNode::Variable { name } = expr {
+                Ok(ast::ExprNode::Assignment {
+                    name,
+                    value: Box::new(value),
+                })
+            } else {
+                Err(ParserError::new(&equals, "invalid assignment target"))
+            }
+        } else {
+            Ok(expr)
+        }
     }
 
     /// Parse the following rule:
@@ -121,7 +146,7 @@ impl Parser {
     /// equality := comparison "==" comparison
     /// equality := comparison "!=" comparison
     /// ```
-    fn parse_equality(&mut self) -> Result<ast::ExprNode, ParserError> {
+    fn parse_equality(&mut self) -> ParserResult<ast::ExprNode> {
         let mut expr = self.parse_comparison()?;
         while let Some(operator) = self.expect(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let right = self.parse_comparison()?;
@@ -139,7 +164,7 @@ impl Parser {
     /// comparison          := term comparison_operator term
     /// comparison_operator := "<" | "<=" | ">" | ">="
     /// ```
-    fn parse_comparison(&mut self) -> Result<ast::ExprNode, ParserError> {
+    fn parse_comparison(&mut self) -> ParserResult<ast::ExprNode> {
         let mut expr = self.parse_term()?;
         while let Some(operator) = self.expect(&[
             TokenType::Greater,
@@ -162,7 +187,7 @@ impl Parser {
     /// term := factor "+" factor
     /// term := factor "-" factor
     /// ```
-    fn parse_term(&mut self) -> Result<ast::ExprNode, ParserError> {
+    fn parse_term(&mut self) -> ParserResult<ast::ExprNode> {
         let mut expr = self.parse_factor()?;
         while let Some(operator) = self.expect(&[TokenType::Minus, TokenType::Plus]) {
             let right = self.parse_factor()?;
@@ -180,7 +205,7 @@ impl Parser {
     /// factor := unary "*" unary
     /// factor := unary "/" unary
     /// ```
-    fn parse_factor(&mut self) -> Result<ast::ExprNode, ParserError> {
+    fn parse_factor(&mut self) -> ParserResult<ast::ExprNode> {
         let mut expr = self.parse_unary()?;
         while let Some(operator) = self.expect(&[TokenType::Slash, TokenType::Star]) {
             let right = self.parse_unary()?;
@@ -199,7 +224,7 @@ impl Parser {
     /// unary := "!" unary
     /// unary := primary
     /// ```
-    fn parse_unary(&mut self) -> Result<ast::ExprNode, ParserError> {
+    fn parse_unary(&mut self) -> ParserResult<ast::ExprNode> {
         if let Some(operator) = self.expect(&[TokenType::Bang, TokenType::Minus]) {
             Ok(ast::ExprNode::Unary {
                 operator,
@@ -216,7 +241,7 @@ impl Parser {
     /// primary := FALSE | TRUE | NIL | STRING | NUMBER
     /// primary := IDENTIFIER
     /// ```
-    fn parse_primary(&mut self) -> Result<ast::ExprNode, ParserError> {
+    fn parse_primary(&mut self) -> ParserResult<ast::ExprNode> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
             let expr = self.parse_expression()?;
             self.consume(&TokenType::RightParen, "expected ')' after expression")?;
@@ -257,7 +282,7 @@ impl Parser {
 
     /// Consume a token of a given type. If no matching token is found, a
     /// parse error is returned instead. Otherwise the read pointer is moved.
-    fn consume(&mut self, token_type: &TokenType, error: &str) -> Result<&Token, ParserError> {
+    fn consume(&mut self, token_type: &TokenType, error: &str) -> ParserResult<&Token> {
         if self.check(token_type) {
             Ok(self.advance())
         } else {
