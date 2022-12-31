@@ -29,6 +29,27 @@ impl Parser {
         }
     }
 
+    /// Synchronize the parser after an error.
+    fn _synchronize(&mut self) {
+        self.advance();
+        while !self.is_at_end() {
+            if self.previous().token_type == TokenType::Semicolon
+                || matches!(
+                    self.peek().token_type,
+                    TokenType::Class
+                        | TokenType::Fun
+                        | TokenType::If
+                        | TokenType::Print
+                        | TokenType::Return
+                        | TokenType::Var
+                        | TokenType::While
+                )
+            {
+                return;
+            }
+        }
+    }
+
     /* ------------------------ *
      * RECURSIVE DESCENT PARSER *
      * ------------------------ */
