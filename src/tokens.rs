@@ -57,13 +57,13 @@ pub struct Token {
 impl Token {
     /// Check whether a token corresponds to a litteral value.
     pub fn is_litteral(&self) -> bool {
-        match self.token_type {
+        matches!(
+            self.token_type,
             TokenType::True
-            | TokenType::False
-            | TokenType::Nil
-            | TokenType::String(_)
-            | TokenType::Number(_) => true,
-            _ => false,
-        }
+                | TokenType::False
+                | TokenType::Nil
+                | TokenType::String(_)
+                | TokenType::Number(_)
+        )
     }
 }
