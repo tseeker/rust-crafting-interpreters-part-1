@@ -71,9 +71,12 @@ impl Parser {
     /// ```
     /// statement := expression ";"
     /// statement := "print" expression ";"
+    /// statement := declaration ";"
     /// ```
     fn parse_statement(&mut self) -> Result<ast::StmtNode, ParserError> {
-        if self.expect(&[TokenType::Print]).is_some() {
+        if self.expect(&[TokenType::Var]).is_some() {
+            self.parse_declaration()
+        } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
             Ok(ast::StmtNode::Print(expression))
@@ -82,6 +85,27 @@ impl Parser {
             self.consume(&TokenType::Semicolon, "expected ';' after expression")?;
             Ok(ast::StmtNode::Expression(expression))
         }
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// declaration := "var" IDENTIFIER ";"
+    /// declaration := "var" IDENTIFIER "=" expression ";"
+    /// ```
+    fn parse_declaration(&mut self) -> Result<ast::StmtNode, ParserError> {
+        let name = match self.peek().token_type {
+            TokenType::Identifier(_) => self.advance().clone(),
+            _ => return Err(ParserError::new(self.peek(), "expected variable name")),
+        };
+        let initializer: Option<ast::ExprNode> = match self.expect(&[TokenType::Equal]) {
+            Some(_) => Some(self.parse_expression()?),
+            None => None,
+        };
+        self.consume(
+            &TokenType::Semicolon,
+            "expected ';' after variable declaration",
+        )?;
+        Ok(ast::StmtNode::VarDecl(name.lexeme, initializer))
     }
 
     /// Parse the following rule:
