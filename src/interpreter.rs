@@ -42,6 +42,43 @@ pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<V
     }
 }
 
+/* ----------------------------- *
+ * INTERPRETER FOR PROGRAM NODES *
+ * ----------------------------- */
+
+impl Interpretable for ast::ProgramNode {
+    fn interprete(&self) -> Result<Value, InterpreterError> {
+        for stmt in self.0.iter() {
+            stmt.interprete()?;
+        }
+        Ok(Value::Nil)
+    }
+}
+
+/* ------------------------------- *
+ * INTERPRETER FOR STATEMENT NODES *
+ * ------------------------------- */
+
+impl Interpretable for ast::StmtNode {
+    fn interprete(&self) -> Result<Value, InterpreterError> {
+        match self {
+            ast::StmtNode::Expression(expr) => expr.interprete(),
+            ast::StmtNode::Print(expr) => {
+                let value = expr.interprete()?;
+                let output = match value {
+                    Value::Nil => String::from("nil"),
+                    Value::Boolean(true) => String::from("true"),
+                    Value::Boolean(false) => String::from("false"),
+                    Value::Number(n) => n.to_string(),
+                    Value::String(s) => s,
+                };
+                println!("{}", output);
+                Ok(Value::Nil)
+            }
+        }
+    }
+}
+
 /* -------------------------------- *
  * INTERPRETER FOR EXPRESSION NODES *
  * -------------------------------- */

@@ -75,9 +75,11 @@ impl Parser {
     fn parse_statement(&mut self) -> Result<ast::StmtNode, ParserError> {
         if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
+            self.consume(&TokenType::Semicolon, "expected ';' after value")?;
             Ok(ast::StmtNode::Print(expression))
         } else {
             let expression = self.parse_expression()?;
+            self.consume(&TokenType::Semicolon, "expected ';' after expression")?;
             Ok(ast::StmtNode::Expression(expression))
         }
     }
