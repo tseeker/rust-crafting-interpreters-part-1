@@ -22,6 +22,9 @@ pub enum StmtNode {
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
+    /// Assignment to a variable.
+    Assignment { name: Token, value: Box<ExprNode> },
+
     /// Binary expression.
     Binary {
         left: Box<ExprNode>,
@@ -79,6 +82,7 @@ impl AstDumper for StmtNode {
 impl AstDumper for ExprNode {
     fn dump(&self) -> String {
         match self {
+            Self::Assignment { name, value } => format!("( = {} {} )", name.lexeme, value.dump()),
             Self::Binary {
                 left,
                 operator,
