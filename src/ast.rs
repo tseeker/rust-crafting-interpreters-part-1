@@ -40,6 +40,9 @@ pub enum ExprNode {
 
     /// A litteral value, represented by the corresponding token.
     Litteral { value: Token },
+
+    /// A reference to a variable.
+    Variable { name: Token },
 }
 
 /* -------------------------------- *
@@ -80,15 +83,10 @@ impl AstDumper for ExprNode {
                 left,
                 operator,
                 right,
-            } => {
-                format!("( {} {} {} )", operator.lexeme, left.dump(), right.dump())
-            }
-            Self::Unary { operator, right } => {
-                format!("( {} {} )", operator.lexeme, right.dump())
-            }
-            Self::Grouping { expression } => {
-                format!("( {} )", expression.dump())
-            }
+            } => format!("( {} {} {} )", operator.lexeme, left.dump(), right.dump()),
+            Self::Unary { operator, right } => format!("( {} {} )", operator.lexeme, right.dump()),
+            Self::Grouping { expression } => format!("( {} )", expression.dump()),
+            Self::Variable { name } => name.lexeme.clone(),
             Self::Litteral { value } => {
                 if value.is_litteral() {
                     value.lexeme.clone()
