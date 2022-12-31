@@ -19,8 +19,8 @@ impl Parser {
 
     /// Parse the tokens into an AST and return it, or return nothing if a
     /// parser error occurs.
-    pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ExprNode> {
-        match self.parse_expression() {
+    pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ProgramNode> {
+        match self.parse_program() {
             Ok(expr) => Some(expr),
             Err(e) => {
                 e.report(err_hdl);
@@ -53,6 +53,34 @@ impl Parser {
     /* ------------------------ *
      * RECURSIVE DESCENT PARSER *
      * ------------------------ */
+
+    /// Parse the following rule:
+    /// ```
+    /// program := statement*
+    /// ```
+    fn parse_program(&mut self) -> Result<ast::ProgramNode, ParserError> {
+        let mut stmts: Vec<ast::StmtNode> = Vec::new();
+        while !self.is_at_end() {
+            let stmt = self.parse_statement()?;
+            stmts.push(stmt);
+        }
+        Ok(ast::ProgramNode(stmts))
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// statement := expression ";"
+    /// statement := "print" expression ";"
+    /// ```
+    fn parse_statement(&mut self) -> Result<ast::StmtNode, ParserError> {
+        if self.expect(&[TokenType::Print]).is_some() {
+            let expression = self.parse_expression()?;
+            Ok(ast::StmtNode::Print(expression))
+        } else {
+            let expression = self.parse_expression()?;
+            Ok(ast::StmtNode::Expression(expression))
+        }
+    }
 
     /// Parse the following rule:
     /// ```
