@@ -11,6 +11,8 @@ pub struct ProgramNode(pub Vec<StmtNode>);
 /// An AST node that represents a statement.
 #[derive(Debug, Clone)]
 pub enum StmtNode {
+    /// A variable declaration
+    VarDecl(String, Option<ExprNode>),
     /// An single expression
     Expression(ExprNode),
     /// The print statement
@@ -63,6 +65,8 @@ impl AstDumper for ProgramNode {
 impl AstDumper for StmtNode {
     fn dump(&self) -> String {
         match self {
+            Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name, expr.dump()),
+            Self::VarDecl(name, None) => format!("( var {} nil )", name),
             Self::Expression(expr) => format!("( {} )", expr.dump()),
             Self::Print(expr) => format!("(print {})", expr.dump()),
         }
