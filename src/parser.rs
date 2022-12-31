@@ -214,6 +214,7 @@ impl Parser {
     /// ```
     /// primary := "(" expression ")"
     /// primary := FALSE | TRUE | NIL | STRING | NUMBER
+    /// primary := IDENTIFIER
     /// ```
     fn parse_primary(&mut self) -> Result<ast::ExprNode, ParserError> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
@@ -230,6 +231,9 @@ impl Parser {
             match &self.peek().token_type {
                 TokenType::Number(_) | &TokenType::String(_) => Ok(ast::ExprNode::Litteral {
                     value: self.advance().clone(),
+                }),
+                TokenType::Identifier(_) => Ok(ast::ExprNode::Variable {
+                    name: self.advance().clone(),
                 }),
                 _ => Err(ParserError::new(self.peek(), "expected expression")),
             }
