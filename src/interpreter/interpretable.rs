@@ -1,24 +1,24 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     ast,
     errors::{ErrorHandler, InterpreterError},
-    interpreter::Value,
+    interpreter::{Environment, EnvironmentRef, Value},
     tokens::{Token, TokenType},
 };
-
-use super::Environment;
 
 /// A result returned by some part of the interpreter.
 pub type InterpreterResult = Result<Value, InterpreterError>;
 
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
-    fn interprete(&self, environment: &mut Environment) -> InterpreterResult;
+    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult;
 }
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
-    let mut env = Environment::default();
-    match ast.interprete(&mut env) {
+    let env = Rc::new(RefCell::new(Environment::default()));
+    match ast.interprete(&env) {
         Ok(v) => Some(v),
         Err(e) => {
             e.report(err_hdl);
@@ -32,7 +32,7 @@ pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<V
  * ----------------------------- */
 
 impl Interpretable for ast::ProgramNode {
-    fn interprete(&self, environment: &mut Environment) -> InterpreterResult {
+    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
         for stmt in self.0.iter() {
             stmt.interprete(environment)?;
         }
@@ -45,18 +45,19 @@ impl Interpretable for ast::ProgramNode {
  * ------------------------------- */
 
 impl Interpretable for ast::StmtNode {
-    fn interprete(&self, environment: &mut Environment) -> InterpreterResult {
+    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
         match self {
             ast::StmtNode::Expression(expr) => expr.interprete(environment),
             ast::StmtNode::Print(expr) => self.on_print(environment, expr),
             ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(environment, name, expr),
+            ast::StmtNode::Block(statements) => self.on_block(environment, statements),
         }
     }
 }
 
 impl ast::StmtNode {
     /// Handle the `print` statement.
-    fn on_print(&self, environment: &mut Environment, expr: &ast::ExprNode) -> InterpreterResult {
+    fn on_print(&self, environment: &EnvironmentRef, expr: &ast::ExprNode) -> InterpreterResult {
         let value = expr.interprete(environment)?;
         let output = match value {
             Value::Nil => String::from("nil"),
@@ -72,7 +73,7 @@ impl ast::StmtNode {
     /// Handle a variable declaration.
     fn on_var_decl(
         &self,
-        environment: &mut Environment,
+        environment: &EnvironmentRef,
         name: &Token,
         initializer: &Option<ast::ExprNode>,
     ) -> InterpreterResult {
@@ -80,7 +81,16 @@ impl ast::StmtNode {
             Some(expr) => expr.interprete(environment)?,
             None => Value::Nil,
         };
-        environment.define(name.lexeme.clone(), value);
+        environment.borrow_mut().define(name.lexeme.clone(), value);
+        Ok(Value::Nil)
+    }
+
+    /// Execute the contents of a block.
+    fn on_block(&self, environment: &EnvironmentRef, stmts: &Vec<Box<ast::StmtNode>>) -> InterpreterResult {
+        let child = Environment::create_child(environment);
+        for stmt in stmts.iter() {
+            stmt.interprete(&child)?;
+        }
         Ok(Value::Nil)
     }
 }
@@ -90,11 +100,11 @@ impl ast::StmtNode {
  * -------------------------------- */
 
 impl Interpretable for ast::ExprNode {
-    fn interprete(&self, environment: &mut Environment) -> InterpreterResult {
+    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
         match self {
             ast::ExprNode::Assignment{ name, value} => {
                 let value = value.interprete(environment)?;
-                environment.assign(name, value)
+                environment.borrow_mut().assign(name, value)
             }
             ast::ExprNode::Binary {
                 left,
@@ -104,7 +114,7 @@ impl Interpretable for ast::ExprNode {
             ast::ExprNode::Unary { operator, right } => self.on_unary(environment, operator, right),
             ast::ExprNode::Grouping { expression } => expression.interprete(environment),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
-            ast::ExprNode::Variable { name } => environment.get(name),
+            ast::ExprNode::Variable { name } => environment.borrow().get(name),
         }
     }
 }
@@ -113,7 +123,7 @@ impl ast::ExprNode {
     /// Evaluate a binary operator.
     fn on_binary(
         &self,
-        environment: &mut Environment,
+        environment: &EnvironmentRef,
         left: &ast::ExprNode,
         operator: &Token,
         right: &ast::ExprNode,
@@ -182,7 +192,7 @@ impl ast::ExprNode {
     /// Evaluate an unary operator.
     fn on_unary(
         &self,
-        environment: &mut Environment,
+        environment: &EnvironmentRef,
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
