@@ -44,6 +44,7 @@ impl Parser {
             {
                 return;
             }
+            self.current += 1;
         }
     }
 
