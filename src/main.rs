@@ -58,7 +58,8 @@ fn run_prompt() {
 
 /// Load a file and run the script it contains.
 fn run_file(file: &str) -> ErrorHandler {
-    let contents = fs::read_to_string(file).expect(&format!("Could not load {}", file));
+    let contents = fs::read_to_string(file)
+        .unwrap_or_else(|_| panic!("Could not load {}", file));
     run(contents)
 }
 
