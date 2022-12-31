@@ -79,10 +79,13 @@ impl Parser {
     /// statement := expression ";"
     /// statement := "print" expression ";"
     /// statement := declaration ";"
+    /// statement := block
     /// ```
     fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
             self.parse_declaration()
+        } else if self.expect(&[TokenType::LeftBrace]).is_some() {
+            self.parse_block()
         } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
@@ -113,6 +116,20 @@ impl Parser {
             "expected ';' after variable declaration",
         )?;
         Ok(ast::StmtNode::VarDecl(name, initializer))
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// block := "{" statement* "}"
+    /// ```
+    fn parse_block(&mut self) -> ParserResult<ast::StmtNode> {
+        let mut stmts: Vec<Box<ast::StmtNode>> = Vec::new();
+        while !(self.check(&TokenType::RightBrace) || self.is_at_end()) {
+            let stmt = self.parse_statement()?;
+            stmts.push(Box::new(stmt));
+        }
+        self.consume(&TokenType::RightBrace, "expected '}' after block.")?;
+        Ok(ast::StmtNode::Block(stmts))
     }
 
     /// Parse the following rule:
