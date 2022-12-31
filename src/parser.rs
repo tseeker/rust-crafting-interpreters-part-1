@@ -23,17 +23,11 @@ impl Parser {
     /// Parse the tokens into an AST and return it, or return nothing if a
     /// parser error occurs.
     pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ProgramNode> {
-        match self.parse_program() {
-            Ok(expr) => Some(expr),
-            Err(e) => {
-                e.report(err_hdl);
-                None
-            }
-        }
+        self.parse_program(err_hdl)
     }
 
     /// Synchronize the parser after an error.
-    fn _synchronize(&mut self) {
+    fn synchronize(&mut self) {
         self.advance();
         while !self.is_at_end() {
             if self.previous().token_type == TokenType::Semicolon
@@ -61,13 +55,22 @@ impl Parser {
     /// ```
     /// program := statement*
     /// ```
-    fn parse_program(&mut self) -> ParserResult<ast::ProgramNode> {
+    fn parse_program(&mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ProgramNode> {
         let mut stmts: Vec<ast::StmtNode> = Vec::new();
         while !self.is_at_end() {
-            let stmt = self.parse_statement()?;
-            stmts.push(stmt);
+            match self.parse_statement() {
+                Ok(node) => stmts.push(node),
+                Err(err) => {
+                    err.report(err_hdl);
+                    self.synchronize()
+                }
+            }
         }
-        Ok(ast::ProgramNode(stmts))
+        if err_hdl.had_error().is_none() {
+            Some(ast::ProgramNode(stmts))
+        } else {
+            None
+        }
     }
 
     /// Parse the following rule:
