@@ -33,9 +33,8 @@ fn run(source: String) -> ErrorHandler {
         None => (),
         Some(ast) => {
             println!("AST generated ! {}", ast.dump());
-            match evaluate(&mut error_handler, &ast) {
-                Some(v) => println!("Final evaluated value: {:?}", v),
-                None => (),
+            if let Some(v) = evaluate(&mut error_handler, &ast) {
+                println!("Final evaluated value: {:?}", v)
             }
         }
     }
