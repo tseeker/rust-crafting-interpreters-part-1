@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{errors::InterpreterError, tokens::Token};
 
-use super::Value;
+use super::{InterpreterResult, Value};
 
 /// The execution environment.
 #[derive(Debug, Default)]
@@ -17,13 +17,26 @@ impl Environment {
     }
 
     /// Get the value of a variable.
-    pub fn get(&self, name: &Token) -> Result<Value, InterpreterError> {
+    pub fn get(&self, name: &Token) -> InterpreterResult {
         match self.values.get(&name.lexeme as &str) {
             None => Err(InterpreterError::new(
                 name,
                 &format!("undefined variable '{}'", name.lexeme),
             )),
             Some(value) => Ok(value.clone()),
+        }
+    }
+
+    /// Assign a value to an existing variable.
+    pub fn assign(&mut self, name: &Token, value: &Value) -> Result<(), InterpreterError> {
+        if self.values.contains_key(&name.lexeme as &str) {
+            self.values.insert(name.lexeme.clone(), value.clone());
+            Ok(())
+        } else {
+            Err(InterpreterError::new(
+                name,
+                &format!("undefined variable '{}'", name.lexeme),
+            ))
         }
     }
 }
