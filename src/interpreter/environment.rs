@@ -1,28 +1,26 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{errors::InterpreterError, tokens::Token};
 
 use super::{InterpreterResult, Value};
 
+/// A mutable reference to an environment.
+pub type EnvironmentRef = Rc<RefCell<Environment>>;
+
 /// The execution environment.
 #[derive(Debug, Default)]
 pub struct Environment {
-    enclosing: Option<Box<Environment>>,
+    enclosing: Option<EnvironmentRef>,
     values: HashMap<String, Value>,
 }
 
 impl Environment {
     /// Create an environment enclosed in another.
-    pub fn create_child(parent: Self) -> Self {
-        Self {
-            enclosing: Some(Box::new(parent)),
+    pub fn create_child(parent: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            enclosing: Some(parent.clone()),
             values: HashMap::default(),
-        }
-    }
-
-    /// Restore an environment's parent.
-    pub fn restore_parent(self) -> Self {
-        *self.enclosing.unwrap()
+        }))
     }
 
     /// Define a new variable.
@@ -38,7 +36,7 @@ impl Environment {
                     name,
                     &format!("undefined variable '{}'", name.lexeme),
                 )),
-                Some(parent) => parent.get(name),
+                Some(parent) => parent.borrow().get(name),
             },
             Some(value) => Ok(value.clone()),
         }
@@ -55,7 +53,7 @@ impl Environment {
                     name,
                     &format!("undefined variable '{}'", name.lexeme),
                 )),
-                Some(parent) => parent.assign(name, value),
+                Some(parent) => parent.borrow_mut().assign(name, value),
             }
         }
     }
