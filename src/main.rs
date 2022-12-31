@@ -13,6 +13,7 @@ use std::{
 
 use ast::AstDumper;
 use errors::ErrorHandler;
+use interpreter::evaluate;
 use parser::Parser;
 use scanner::Scanner;
 
@@ -31,7 +32,11 @@ fn run(source: String) -> ErrorHandler {
     match parser.parse(&mut error_handler) {
         None => (),
         Some(ast) => {
-            println!("AST generated ! {}", ast.dump())
+            println!("AST generated ! {}", ast.dump());
+            match evaluate(&mut error_handler, &ast) {
+                Some(v) => println!("Final evaluated value: {:?}", v),
+                None => (),
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     ast,
-    errors::InterpreterError,
+    errors::{ErrorHandler, InterpreterError},
     tokens::{Token, TokenType},
 };
 
@@ -31,6 +31,16 @@ pub trait Interpretable {
     fn interprete(&self) -> Result<Value, InterpreterError>;
 }
 
+/// Evaluate an interpretable, returning its value.
+pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
+    match ast.interprete() {
+        Ok(v) => Some(v),
+        Err(e) => {
+            e.report(err_hdl);
+            None
+        }
+    }
+}
 
 /* -------------------------------- *
  * INTERPRETER FOR EXPRESSION NODES *
