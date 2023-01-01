@@ -30,6 +30,10 @@ pub enum StmtNode {
         condition: ExprNode,
         body: Box<StmtNode>,
     },
+    /// Break statement
+    BreakStmt,
+    /// Continue statement
+    ContinueStmt,
 }
 
 /// An AST node that represents an expression.
@@ -93,6 +97,8 @@ impl AstDumper for StmtNode {
         match self {
             Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name.lexeme, expr.dump()),
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
+            Self::BreakStmt => String::from("break"),
+            Self::ContinueStmt => String::from("continue"),
             Self::Expression(expr) => format!("{}", expr.dump()),
             Self::Print(expr) => format!("(print {})", expr.dump()),
 
