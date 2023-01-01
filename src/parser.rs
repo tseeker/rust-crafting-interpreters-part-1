@@ -167,7 +167,7 @@ impl Parser {
     /// assignment := equality
     /// ```
     fn parse_assignment(&mut self) -> ParserResult<ast::ExprNode> {
-        let expr = self.parse_equality()?;
+        let expr = self.parse_logic_or()?;
         if let Some(equals) = self.expect(&[TokenType::Equal]) {
             let value = self.parse_assignment()?;
             if let ast::ExprNode::Variable { name } = expr {
@@ -181,6 +181,40 @@ impl Parser {
         } else {
             Ok(expr)
         }
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// logic_or := logic_and ( "or" logic_and )*
+    /// ```
+    fn parse_logic_or(&mut self) -> ParserResult<ast::ExprNode> {
+        let mut expr = self.parse_logic_and()?;
+        while let Some(operator) = self.expect(&[TokenType::Or]) {
+            let right = self.parse_logic_and()?;
+            expr = ast::ExprNode::Logical {
+                left: Box::new(expr),
+                operator: operator.clone(),
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// logic_and := equality ( "and" equality )*
+    /// ```
+    fn parse_logic_and(&mut self) -> ParserResult<ast::ExprNode> {
+        let mut expr = self.parse_equality()?;
+        while let Some(operator) = self.expect(&[TokenType::And]) {
+            let right = self.parse_equality()?;
+            expr = ast::ExprNode::Logical {
+                left: Box::new(expr),
+                operator: operator.clone(),
+                right: Box::new(right),
+            };
+        }
+        Ok(expr)
     }
 
     /// Parse the following rule:
