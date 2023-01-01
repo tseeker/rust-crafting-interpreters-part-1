@@ -77,11 +77,11 @@ impl ast::StmtNode {
         name: &Token,
         initializer: &Option<ast::ExprNode>,
     ) -> InterpreterResult {
-        let value = match initializer {
-            Some(expr) => expr.interprete(environment)?,
-            None => Value::Nil,
+        let variable = match initializer {
+            Some(expr) => Some(expr.interprete(environment)?),
+            None => None,
         };
-        environment.borrow_mut().define(name.lexeme.clone(), value);
+        environment.borrow_mut().define(name, variable)?;
         Ok(Value::Nil)
     }
 
