@@ -205,7 +205,7 @@ impl ast::ExprNode {
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
-            TokenType::Equal => Ok(Value::Boolean(left_value == right_value)),
+            TokenType::EqualEqual => Ok(Value::Boolean(left_value == right_value)),
             TokenType::BangEqual => Ok(Value::Boolean(left_value != right_value)),
 
             _ => panic!(
