@@ -82,6 +82,7 @@ impl Parser {
     /// statement := block
     /// statement := if_statement
     /// statement := while_statement
+    /// statement := for_statement
     /// ```
     fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
@@ -92,15 +93,25 @@ impl Parser {
             self.parse_if_statement()
         } else if self.expect(&[TokenType::While]).is_some() {
             self.parse_while_statement()
+        } else if self.expect(&[TokenType::For]).is_some() {
+            self.parse_for_statement()
         } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
             Ok(ast::StmtNode::Print(expression))
         } else {
-            let expression = self.parse_expression()?;
-            self.consume(&TokenType::Semicolon, "expected ';' after expression")?;
-            Ok(ast::StmtNode::Expression(expression))
+            self.parse_expression_stmt()
         }
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// expression_stmt := expression ";"
+    /// ```
+    fn parse_expression_stmt(&mut self) -> ParserResult<ast::StmtNode> {
+        let expression = self.parse_expression()?;
+        self.consume(&TokenType::Semicolon, "expected ';' after expression")?;
+        Ok(ast::StmtNode::Expression(expression))
     }
 
     /// Parse the following rule:
@@ -140,13 +151,16 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
-    /// if := "if" condition statement
-    /// if := "if" condition statement "else" statement
+    /// if_statement := "if" "(" expression ")" statement
+    /// if_statement := "if" "(" expression ")" statement "else" statement
     /// ```
     fn parse_if_statement(&mut self) -> ParserResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'if'")?;
         let expression = self.parse_expression()?;
-        self.consume(&TokenType::RightParen, "expected ')' after condition in 'if' statement")?;
+        self.consume(
+            &TokenType::RightParen,
+            "expected ')' after condition in 'if' statement",
+        )?;
         let then_branch = Box::new(self.parse_statement()?);
         let else_branch = match self.expect(&[TokenType::Else]) {
             Some(_) => Some(Box::new(self.parse_statement()?)),
@@ -161,14 +175,86 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
-    /// while := "while" condition statement
+    /// while_statement := "while" "(" expression ")" statement
     /// ```
     fn parse_while_statement(&mut self) -> ParserResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'while'")?;
         let condition = self.parse_expression()?;
-        self.consume(&TokenType::RightParen, "expected ')' after condition in 'while' statement")?;
+        self.consume(
+            &TokenType::RightParen,
+            "expected ')' after condition in 'while' statement",
+        )?;
         let body = Box::new(self.parse_statement()?);
         Ok(ast::StmtNode::WhileStmt { condition, body })
+    }
+
+    /// Parse the following rules:
+    /// ```
+    /// for_statement := "for" "(" for_initializer ";" expression ";" expression ")" statement
+    /// for_initializer := declaration
+    /// for_initializer := expression
+    /// for_initializer :=
+    /// ```
+    fn parse_for_statement(&mut self) -> ParserResult<ast::StmtNode> {
+        self.consume(&TokenType::LeftParen, "expected '(' after 'for'")?;
+
+        let initializer = if self.expect(&[TokenType::Semicolon]).is_some() {
+            None
+        } else if self.expect(&[TokenType::Var]).is_some() {
+            Some(self.parse_declaration()?)
+        } else {
+            Some(self.parse_expression_stmt()?)
+        };
+
+        let condition = if self.check(&TokenType::Semicolon) {
+            ast::ExprNode::Litteral {
+                value: Token {
+                    token_type: TokenType::True,
+                    lexeme: String::from("true"),
+                    line: self.peek().line,
+                },
+            }
+        } else {
+            self.parse_expression()?
+        };
+        self.consume(
+            &TokenType::Semicolon,
+            "expected ';' after condition in 'for' statement",
+        )?;
+
+        let increment = if self.check(&TokenType::RightParen) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        self.consume(
+            &TokenType::RightParen,
+            "expected ')' after increment in 'for' statement",
+        )?;
+
+        // Generate a while loop, with an optional initializer which may be
+        // inside a specific block if the initializer declares a variable.
+        let body_stmt = self.parse_statement()?;
+        let body_with_incr = if let Some(incr) = increment {
+            ast::StmtNode::Block(vec![
+                Box::new(body_stmt),
+                Box::new(ast::StmtNode::Expression(incr)),
+            ])
+        } else {
+            body_stmt
+        };
+        let while_stmt = ast::StmtNode::WhileStmt {
+            condition,
+            body: Box::new(body_with_incr),
+        };
+        if let Some(init_stmt) = initializer {
+            Ok(ast::StmtNode::Block(vec![
+                Box::new(init_stmt),
+                Box::new(while_stmt),
+            ]))
+        } else {
+            Ok(while_stmt)
+        }
     }
 
     /// Parse the following rule:
