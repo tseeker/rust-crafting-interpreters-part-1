@@ -56,6 +56,9 @@ impl Interpretable for ast::StmtNode {
                 then_branch,
                 else_branch,
             } => self.on_if_statement(environment, condition, then_branch, else_branch),
+            ast::StmtNode::WhileStmt { condition, body } => {
+                self.on_while_statement(environment, condition, body)
+            }
         }
     }
 }
@@ -118,6 +121,19 @@ impl ast::StmtNode {
         } else {
             Ok(Value::Nil)
         }
+    }
+
+    /// Execute a while statement.
+    fn on_while_statement(
+        &self,
+        environment: &EnvironmentRef,
+        condition: &ast::ExprNode,
+        body: &ast::StmtNode,
+    ) -> InterpreterResult {
+        while condition.interprete(environment)?.is_truthy() {
+            body.interprete(environment)?;
+        }
+        Ok(Value::Nil)
     }
 }
 
