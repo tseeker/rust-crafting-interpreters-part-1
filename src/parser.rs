@@ -86,6 +86,8 @@ impl Parser {
             self.parse_declaration()
         } else if self.expect(&[TokenType::LeftBrace]).is_some() {
             self.parse_block()
+        } else if self.expect(&[TokenType::If]).is_some() {
+            self.parse_if_statement()
         } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
@@ -130,6 +132,25 @@ impl Parser {
         }
         self.consume(&TokenType::RightBrace, "expected '}' after block.")?;
         Ok(ast::StmtNode::Block(stmts))
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// if := "if" condition statement
+    /// if := "if" condition statement "else" statement
+    /// ```
+    fn parse_if_statement(&mut self) -> ParserResult<ast::StmtNode> {
+        let expression = self.parse_expression()?;
+        let then_branch = Box::new(self.parse_statement()?);
+        let else_branch = match self.expect(&[TokenType::Else]) {
+            Some(_) => Some(Box::new(self.parse_statement()?)),
+            None => None,
+        };
+        Ok(ast::StmtNode::IfStmt {
+            condition: expression,
+            then_branch,
+            else_branch,
+        })
     }
 
     /// Parse the following rule:
