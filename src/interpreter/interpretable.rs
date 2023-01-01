@@ -51,6 +51,11 @@ impl Interpretable for ast::StmtNode {
             ast::StmtNode::Print(expr) => self.on_print(environment, expr),
             ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(environment, name, expr),
             ast::StmtNode::Block(statements) => self.on_block(environment, statements),
+            ast::StmtNode::IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            } => self.on_if_statement(environment, condition, then_branch, else_branch),
         }
     }
 }
@@ -86,12 +91,33 @@ impl ast::StmtNode {
     }
 
     /// Execute the contents of a block.
-    fn on_block(&self, environment: &EnvironmentRef, stmts: &Vec<Box<ast::StmtNode>>) -> InterpreterResult {
+    fn on_block(
+        &self,
+        environment: &EnvironmentRef,
+        stmts: &Vec<Box<ast::StmtNode>>,
+    ) -> InterpreterResult {
         let child = Environment::create_child(environment);
         for stmt in stmts.iter() {
             stmt.interprete(&child)?;
         }
         Ok(Value::Nil)
+    }
+
+    /// Execute an if statement.
+    fn on_if_statement(
+        &self,
+        environment: &EnvironmentRef,
+        condition: &ast::ExprNode,
+        then_branch: &ast::StmtNode,
+        else_branch: &Option<Box<ast::StmtNode>>,
+    ) -> InterpreterResult {
+        if condition.interprete(environment)?.is_truthy() {
+            then_branch.interprete(environment)
+        } else if let Some(else_stmt) = else_branch {
+            else_stmt.interprete(environment)
+        } else {
+            Ok(Value::Nil)
+        }
     }
 }
 
@@ -102,7 +128,7 @@ impl ast::StmtNode {
 impl Interpretable for ast::ExprNode {
     fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
         match self {
-            ast::ExprNode::Assignment{ name, value} => {
+            ast::ExprNode::Assignment { name, value } => {
                 let value = value.interprete(environment)?;
                 environment.borrow_mut().assign(name, value)
             }
