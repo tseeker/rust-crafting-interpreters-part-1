@@ -27,7 +27,9 @@ pub enum TokenType {
     Number(f64),
 
     And,
+    Break,
     Class,
+    Continue,
     Else,
     False,
     Fun,
