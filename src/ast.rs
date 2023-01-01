@@ -19,6 +19,12 @@ pub enum StmtNode {
     Print(ExprNode),
     /// A block containing multiple statements.
     Block(Vec<Box<StmtNode>>),
+    /// A conditional statement.
+    IfStmt {
+        condition: ExprNode,
+        then_branch: Box<StmtNode>,
+        else_branch: Option<Box<StmtNode>>,
+    },
 }
 
 /// An AST node that represents an expression.
@@ -77,11 +83,26 @@ impl AstDumper for StmtNode {
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
             Self::Expression(expr) => format!("( {} )", expr.dump()),
             Self::Print(expr) => format!("(print {})", expr.dump()),
+
             Self::Block(stmts) => stmts
                 .iter()
                 .map(|s| s.dump())
                 .collect::<Vec<String>>()
                 .join(" "),
+
+            Self::IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            } => match else_branch {
+                None => format!("( if {} {} () )", condition.dump(), then_branch.dump()),
+                Some(stmt) => format!(
+                    "( if {} {} {} )",
+                    condition.dump(),
+                    then_branch.dump(),
+                    stmt.dump()
+                ),
+            },
         }
     }
 }
