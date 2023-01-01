@@ -80,6 +80,8 @@ impl Parser {
     /// statement := "print" expression ";"
     /// statement := declaration ";"
     /// statement := block
+    /// statement := if_statement
+    /// statement := while_statement
     /// ```
     fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
@@ -88,6 +90,8 @@ impl Parser {
             self.parse_block()
         } else if self.expect(&[TokenType::If]).is_some() {
             self.parse_if_statement()
+        } else if self.expect(&[TokenType::While]).is_some() {
+            self.parse_while_statement()
         } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
@@ -151,6 +155,16 @@ impl Parser {
             then_branch,
             else_branch,
         })
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// while := "while" condition statement
+    /// ```
+    fn parse_while_statement(&mut self) -> ParserResult<ast::StmtNode> {
+        let condition = self.parse_expression()?;
+        let body = Box::new(self.parse_statement()?);
+        Ok(ast::StmtNode::WhileStmt { condition, body })
     }
 
     /// Parse the following rule:
