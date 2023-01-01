@@ -260,8 +260,8 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
-    /// term := factor "+" factor
-    /// term := factor "-" factor
+    /// term := factor ( "+" factor )*
+    /// term := factor ( "-" factor )*
     /// ```
     fn parse_term(&mut self) -> ParserResult<ast::ExprNode> {
         let mut expr = self.parse_factor()?;
@@ -278,8 +278,8 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
-    /// factor := unary "*" unary
-    /// factor := unary "/" unary
+    /// factor := unary ( "*" unary )*
+    /// factor := unary ( "/" unary )*
     /// ```
     fn parse_factor(&mut self) -> ParserResult<ast::ExprNode> {
         let mut expr = self.parse_unary()?;
