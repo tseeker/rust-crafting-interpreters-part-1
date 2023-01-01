@@ -236,10 +236,14 @@ impl Parser {
         // inside a specific block if the initializer declares a variable.
         let body_stmt = self.parse_statement()?;
         let body_with_incr = if let Some(incr) = increment {
-            ast::StmtNode::Block(vec![
-                Box::new(body_stmt),
-                Box::new(ast::StmtNode::Expression(incr)),
-            ])
+            let incr_stmt = Box::new(ast::StmtNode::Expression(incr));
+            let body_block = if let ast::StmtNode::Block(mut body_block) = body_stmt {
+                body_block.push(incr_stmt);
+                body_block
+            } else {
+                vec![Box::new(body_stmt), incr_stmt]
+            };
+            ast::StmtNode::Block(body_block)
         } else {
             body_stmt
         };
