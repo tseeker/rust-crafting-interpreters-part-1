@@ -144,7 +144,9 @@ impl Parser {
     /// if := "if" condition statement "else" statement
     /// ```
     fn parse_if_statement(&mut self) -> ParserResult<ast::StmtNode> {
+        self.consume(&TokenType::LeftParen, "expected '(' after 'if'")?;
         let expression = self.parse_expression()?;
+        self.consume(&TokenType::RightParen, "expected ')' after condition in 'if' statement")?;
         let then_branch = Box::new(self.parse_statement()?);
         let else_branch = match self.expect(&[TokenType::Else]) {
             Some(_) => Some(Box::new(self.parse_statement()?)),
@@ -162,7 +164,9 @@ impl Parser {
     /// while := "while" condition statement
     /// ```
     fn parse_while_statement(&mut self) -> ParserResult<ast::StmtNode> {
+        self.consume(&TokenType::LeftParen, "expected '(' after 'while'")?;
         let condition = self.parse_expression()?;
+        self.consume(&TokenType::RightParen, "expected ')' after condition in 'while' statement")?;
         let body = Box::new(self.parse_statement()?);
         Ok(ast::StmtNode::WhileStmt { condition, body })
     }
