@@ -33,6 +33,13 @@ pub enum ExprNode {
     /// Assignment to a variable.
     Assignment { name: Token, value: Box<ExprNode> },
 
+    /// Logical binary expression.
+    Logical {
+        left: Box<ExprNode>,
+        operator: Token,
+        right: Box<ExprNode>,
+    },
+
     /// Binary expression.
     Binary {
         left: Box<ExprNode>,
@@ -111,6 +118,11 @@ impl AstDumper for ExprNode {
     fn dump(&self) -> String {
         match self {
             Self::Assignment { name, value } => format!("( = {} {} )", name.lexeme, value.dump()),
+            Self::Logical {
+                left,
+                operator,
+                right,
+            } => format!("( {} {} {} )", operator.lexeme, left.dump(), right.dump()),
             Self::Binary {
                 left,
                 operator,
