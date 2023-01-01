@@ -93,14 +93,17 @@ impl AstDumper for StmtNode {
         match self {
             Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name.lexeme, expr.dump()),
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
-            Self::Expression(expr) => format!("( {} )", expr.dump()),
+            Self::Expression(expr) => format!("{}", expr.dump()),
             Self::Print(expr) => format!("(print {})", expr.dump()),
 
-            Self::Block(stmts) => stmts
-                .iter()
-                .map(|s| s.dump())
-                .collect::<Vec<String>>()
-                .join(" "),
+            Self::Block(stmts) => format!(
+                "( {} )",
+                stmts
+                    .iter()
+                    .map(|s| s.dump())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
 
             Self::IfStmt {
                 condition,
