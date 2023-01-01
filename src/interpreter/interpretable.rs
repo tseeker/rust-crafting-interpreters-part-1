@@ -132,6 +132,11 @@ impl Interpretable for ast::ExprNode {
                 let value = value.interprete(environment)?;
                 environment.borrow_mut().assign(name, value)
             }
+            ast::ExprNode::Logical {
+                left,
+                operator,
+                right,
+            } => self.on_logic(environment, left, operator, right),
             ast::ExprNode::Binary {
                 left,
                 operator,
@@ -146,6 +151,24 @@ impl Interpretable for ast::ExprNode {
 }
 
 impl ast::ExprNode {
+    /// Evaluate a logical operator.
+    fn on_logic(
+        &self,
+        environment: &EnvironmentRef,
+        left: &ast::ExprNode,
+        operator: &Token,
+        right: &ast::ExprNode,
+    ) -> InterpreterResult {
+        let left_value = left.interprete(environment)?;
+        if operator.token_type == TokenType::Or && left_value.is_truthy() {
+            Ok(left_value)
+        } else if operator.token_type == TokenType::And && !left_value.is_truthy() {
+            Ok(left_value)
+        } else {
+            right.interprete(environment)
+        }
+    }
+
     /// Evaluate a binary operator.
     fn on_binary(
         &self,
