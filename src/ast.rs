@@ -25,6 +25,11 @@ pub enum StmtNode {
         then_branch: Box<StmtNode>,
         else_branch: Option<Box<StmtNode>>,
     },
+    /// While loop statement.
+    WhileStmt {
+        condition: ExprNode,
+        body: Box<StmtNode>,
+    },
 }
 
 /// An AST node that represents an expression.
@@ -110,6 +115,10 @@ impl AstDumper for StmtNode {
                     stmt.dump()
                 ),
             },
+
+            Self::WhileStmt { condition, body } => {
+                format!("( while {} {} )", condition.dump(), body.dump())
+            }
         }
     }
 }
