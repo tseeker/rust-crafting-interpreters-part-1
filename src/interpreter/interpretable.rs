@@ -32,6 +32,7 @@ pub enum InterpreterFlowControl {
     Result(Value),
     Break(Option<String>),
     Continue(Option<String>),
+    Return(Value),
 }
 
 impl InterpreterFlowControl {
@@ -47,7 +48,7 @@ impl InterpreterFlowControl {
     /// Check whether a flow control value contains actual flow control
     /// information.
     pub(crate) fn is_flow_control(&self) -> bool {
-        matches!(self, Self::Break(_) | Self::Continue(_))
+        matches!(self, Self::Break(_) | Self::Continue(_) | Self::Return(_))
     }
 }
 
@@ -113,6 +114,9 @@ impl Interpretable for ast::StmtNode {
                 is_break,
                 loop_name,
             } => self.on_loop_control_statemement(*is_break, loop_name),
+            ast::StmtNode::Return { token: _, value } => {
+                self.on_return_statement(environment, value)
+            }
         }
     }
 }
@@ -235,6 +239,19 @@ impl ast::StmtNode {
         } else {
             Ok(InterpreterFlowControl::Continue(name))
         }
+    }
+
+    /// Execute a return statement.
+    fn on_return_statement(
+        &self,
+        environment: &EnvironmentRef,
+        value: &Option<ast::ExprNode>,
+    ) -> InterpreterResult {
+        let rv = match value {
+            None => Value::Nil,
+            Some(expr) => expr.interpret(environment)?.result(),
+        };
+        Ok(InterpreterFlowControl::Return(rv))
     }
 }
 
