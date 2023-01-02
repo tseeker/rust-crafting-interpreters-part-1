@@ -30,6 +30,36 @@ impl From<&Option<Token>> for LoopParsingState {
     }
 }
 
+/// The type of a function that is being parsed.
+#[derive(Debug)]
+enum FunctionKind {
+    Function,
+    Lambda,
+}
+
+impl FunctionKind {
+    /// The name of this kind.
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Function => "function",
+            Self::Lambda => "lambda",
+        }
+    }
+
+    /// The string that designates what can be found before the parameters
+    fn before_params(&self) -> &'static str {
+        match self {
+            Self::Function => "function name",
+            Self::Lambda => "'fun' keyword",
+        }
+    }
+
+    /// The maximal amount of explicit parameters for a function of this kind.
+    fn max_params(&self) -> usize {
+        255
+    }
+}
+
 /// The result of one of the parser's functions.
 type ParserResult<T> = Result<T, ParserError>;
 
@@ -118,7 +148,13 @@ impl Parser {
         if self.expect(&[TokenType::Var]).is_some() {
             self.parse_var_declaration()
         } else if self.expect(&[TokenType::Fun]).is_some() {
-            self.parse_fun_declaration("function")
+            if self.check(&TokenType::LeftParen) {
+                // This is a lambda.
+                self.current -= 1;
+                self.parse_expression_stmt()
+            } else {
+                self.parse_fun_declaration(FunctionKind::Function)
+            }
         } else if self.expect(&[TokenType::LeftBrace]).is_some() {
             self.parse_block()
         } else if self.expect(&[TokenType::Address]).is_some() {
@@ -177,55 +213,71 @@ impl Parser {
     /// ```
     /// fun_declaration := "fun" function
     /// function        := IDENTIFIER function_info
-    /// function_info   := "(" parameters? ")" block
-    /// parameters      := IDENTIFIER ( "," IDENTIFIER )*
     /// ```
     /// The `kind` parameter is used to generate error messages.
-    fn parse_fun_declaration(&mut self, kind: &'static str) -> ParserResult<ast::StmtNode> {
+    fn parse_fun_declaration(&mut self, kind: FunctionKind) -> ParserResult<ast::StmtNode> {
         // Read the name
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
             _ => {
                 return Err(ParserError::new(
                     self.peek(),
-                    &format!("expected {} name", kind),
+                    &format!("expected {} name", kind.name()),
                 ))
             }
         };
+        let (params, block) = self.parse_function_info(kind)?;
+        Ok(ast::StmtNode::FunDecl {
+            name,
+            params,
+            body: block,
+        })
+    }
 
+    /// Parse the following rules:
+    /// ```
+    /// function_info   := "(" parameters? ")" block
+    /// parameters      := IDENTIFIER ( "," IDENTIFIER )*
+    /// ```
+    fn parse_function_info(
+        &mut self,
+        kind: FunctionKind,
+    ) -> ParserResult<(Vec<Token>, Vec<ast::StmtNode>)> {
         // Read the list of parameter names
         self.consume(
             &TokenType::LeftParen,
-            &format!("expected '(' after {} name", kind),
+            &format!("expected '(' after {}", kind.before_params()),
         )?;
-        let params = {
-            let mut params = Vec::new();
-            if self.expect(&[TokenType::RightParen]).is_none() {
-                loop {
-                    if params.len() >= 255 {
-                        return Err(ParserError::new(
-                            self.peek(),
-                            &format!("{} can't have more than 255 parameters", kind),
-                        ));
-                    }
-                    if let TokenType::Identifier(_) = self.peek().token_type {
-                        params.push(self.advance().clone());
-                    } else {
-                        return Err(ParserError::new(self.peek(), "parameter name expected"));
-                    }
-                    if self.expect(&[TokenType::Comma]).is_none() {
-                        break;
-                    }
+
+        let mut params = Vec::new();
+        if self.expect(&[TokenType::RightParen]).is_none() {
+            loop {
+                if params.len() >= kind.max_params() {
+                    return Err(ParserError::new(
+                        self.peek(),
+                        &format!(
+                            "{} can't have more than {} parameters",
+                            kind.name(),
+                            kind.max_params()
+                        ),
+                    ));
                 }
-                self.consume(&TokenType::RightParen, "')' expected after parameters")?;
+                if let TokenType::Identifier(_) = self.peek().token_type {
+                    params.push(self.advance().clone());
+                } else {
+                    return Err(ParserError::new(self.peek(), "parameter name expected"));
+                }
+                if self.expect(&[TokenType::Comma]).is_none() {
+                    break;
+                }
             }
-            params
-        };
+            self.consume(&TokenType::RightParen, "')' expected after parameters")?;
+        }
 
         // Read the function's body
         self.consume(
             &TokenType::LeftBrace,
-            &format!("'{{' expected before {} body", kind),
+            &format!("'{{' expected before {} body", kind.name()),
         )?;
         let block = {
             self.loop_state.push(LoopParsingState::None);
@@ -233,11 +285,7 @@ impl Parser {
             self.loop_state.pop();
             result?
         };
-        Ok(ast::StmtNode::FunDecl {
-            name,
-            params,
-            body: block.extract_block_statements(),
-        })
+        Ok((params, block.extract_block_statements()))
     }
 
     /// Parse the following rule:
@@ -626,6 +674,7 @@ impl Parser {
     /// primary := "(" expression ")"
     /// primary := FALSE | TRUE | NIL | STRING | NUMBER
     /// primary := IDENTIFIER
+    /// primary := "fun" function_info
     /// ```
     fn parse_primary(&mut self) -> ParserResult<ast::ExprNode> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
@@ -633,6 +682,13 @@ impl Parser {
             self.consume(&TokenType::RightParen, "expected ')' after expression")?;
             Ok(ast::ExprNode::Grouping {
                 expression: Box::new(expr),
+            })
+        } else if let Some(token) = self.expect(&[TokenType::Fun]) {
+            let (params, body) = self.parse_function_info(FunctionKind::Lambda)?;
+            Ok(ast::ExprNode::Lambda {
+                token,
+                params,
+                body,
             })
         } else if let Some(token) =
             self.expect(&[TokenType::False, TokenType::True, TokenType::Nil])
