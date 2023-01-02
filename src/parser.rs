@@ -115,6 +115,8 @@ impl Parser {
     fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
             self.parse_var_declaration()
+        } else if self.expect(&[TokenType::Fun]).is_some() {
+            self.parse_fun_declaration("function")
         } else if self.expect(&[TokenType::LeftBrace]).is_some() {
             self.parse_block()
         } else if self.expect(&[TokenType::Address]).is_some() {
@@ -148,8 +150,8 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
-    /// declaration := "var" IDENTIFIER ";"
-    /// declaration := "var" IDENTIFIER "=" expression ";"
+    /// var_declaration := "var" IDENTIFIER ";"
+    /// var_declaration := "var" IDENTIFIER "=" expression ";"
     /// ```
     fn parse_var_declaration(&mut self) -> ParserResult<ast::StmtNode> {
         let name = match self.peek().token_type {
@@ -165,6 +167,68 @@ impl Parser {
             "expected ';' after variable declaration",
         )?;
         Ok(ast::StmtNode::VarDecl(name, initializer))
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// fun_declaration := "fun" function
+    /// function        := IDENTIFIER function_info
+    /// function_info   := "(" parameters? ")" block
+    /// parameters      := IDENTIFIER ( "," IDENTIFIER )*
+    /// ```
+    /// The `kind` parameter is used to generate error messages.
+    fn parse_fun_declaration(&mut self, kind: &'static str) -> ParserResult<ast::StmtNode> {
+        // Read the name
+        let name = match self.peek().token_type {
+            TokenType::Identifier(_) => self.advance().clone(),
+            _ => {
+                return Err(ParserError::new(
+                    self.peek(),
+                    &format!("expected {} name", kind),
+                ))
+            }
+        };
+
+        // Read the list of parameter names
+        self.consume(
+            &TokenType::LeftParen,
+            &format!("expected '(' after {} name", kind),
+        )?;
+        let params = {
+            let mut params = Vec::new();
+            if !self.check(&TokenType::RightParen) {
+                loop {
+                    if params.len() >= 255 {
+                        return Err(ParserError::new(
+                            self.peek(),
+                            &format!("{} can't have more than 255 parameters", kind),
+                        ));
+                    }
+                    if let TokenType::Identifier(_) = self.peek().token_type {
+                        params.push(self.advance().clone());
+                    } else {
+                        return Err(ParserError::new(self.peek(), "parameter name expected"));
+                    }
+                    if self.expect(&[TokenType::Comma]).is_none() {
+                        break;
+                    }
+                }
+                self.consume(&TokenType::RightParen, "')' expected after parameters")?;
+            }
+            params
+        };
+
+        // Read the function's body
+        self.consume(
+            &TokenType::LeftBrace,
+            &format!("'{{' expected before {} body", kind),
+        )?;
+        let block = self.parse_block()?;
+        Ok(ast::StmtNode::FunDecl {
+            name,
+            params,
+            body: block.extract_block_statements(),
+        })
     }
 
     /// Parse the following rule:
