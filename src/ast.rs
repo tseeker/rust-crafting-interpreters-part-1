@@ -130,16 +130,12 @@ impl AstDumper for StmtNode {
                 condition,
                 body,
             } => {
-                format!(
-                    "( {}while {} {} )",
-                    if let Some(label) = label {
-                        &format!("@{} ", label.lexeme)
-                    } else {
-                        ""
-                    },
-                    condition.dump(),
-                    body.dump()
-                )
+                let ltxt = if let Some(label) = label {
+                    format!("@{} ", label.lexeme)
+                } else {
+                    "".to_string()
+                };
+                format!("( {}while {} {} )", ltxt, condition.dump(), body.dump())
             }
 
             Self::LoopControlStmt {
