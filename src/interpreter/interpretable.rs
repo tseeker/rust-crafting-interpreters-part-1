@@ -398,8 +398,20 @@ impl ast::ExprNode {
             }
             v
         };
-        if let Value::Callable(callable) = &callee {
-            Ok(callable.borrow().call(environment, arg_values)?.into())
+        if let Value::Callable(callable_ref) = &callee {
+            let callable = callable_ref.borrow();
+            if callable.arity() != arg_values.len() {
+                Err(InterpreterError::new(
+                    right_paren,
+                    &format!(
+                        "expected {} arguments, found {}",
+                        arg_values.len(),
+                        callable.arity()
+                    ),
+                ))
+            } else {
+                Ok(callable.call(environment, arg_values)?.into())
+            }
         } else {
             Err(InterpreterError::new(
                 right_paren,
