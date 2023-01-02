@@ -25,11 +25,12 @@ pub enum StmtNode {
         then_branch: Box<StmtNode>,
         else_branch: Option<Box<StmtNode>>,
     },
-    /// While loop statement.
-    WhileStmt {
+    /// Loop statement.
+    LoopStmt {
         label: Option<Token>,
         condition: ExprNode,
         body: Box<StmtNode>,
+        after_body: Option<Box<StmtNode>>,
     },
     /// Break or continue statement.
     LoopControlStmt {
@@ -125,17 +126,29 @@ impl AstDumper for StmtNode {
                 ),
             },
 
-            Self::WhileStmt {
+            Self::LoopStmt {
                 label,
                 condition,
                 body,
+                after_body,
             } => {
                 let ltxt = if let Some(label) = label {
                     format!("@{} ", label.lexeme)
                 } else {
                     "".to_string()
                 };
-                format!("( {}while {} {} )", ltxt, condition.dump(), body.dump())
+                let abtxt = if let Some(after_body) = after_body {
+                    format!("{} ", after_body.dump())
+                } else {
+                    "".to_string()
+                };
+                format!(
+                    "( {}loop {} {} {})",
+                    ltxt,
+                    condition.dump(),
+                    body.dump(),
+                    abtxt
+                )
             }
 
             Self::LoopControlStmt {
