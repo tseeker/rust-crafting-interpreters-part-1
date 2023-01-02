@@ -27,6 +27,7 @@ pub enum StmtNode {
     },
     /// While loop statement.
     WhileStmt {
+        label: Option<Token>,
         condition: ExprNode,
         body: Box<StmtNode>,
     },
@@ -124,8 +125,21 @@ impl AstDumper for StmtNode {
                 ),
             },
 
-            Self::WhileStmt { condition, body } => {
-                format!("( while {} {} )", condition.dump(), body.dump())
+            Self::WhileStmt {
+                label,
+                condition,
+                body,
+            } => {
+                format!(
+                    "( {}while {} {} )",
+                    if let Some(label) = label {
+                        &format!("@{} ", label.lexeme)
+                    } else {
+                        ""
+                    },
+                    condition.dump(),
+                    body.dump()
+                )
             }
 
             Self::LoopControlStmt {
