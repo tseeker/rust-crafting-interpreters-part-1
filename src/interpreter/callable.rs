@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::errors::InterpreterError;
 
-use super::{Environment, Value};
+use super::{EnvironmentRef, Value};
 
 /// A callable is some object that supports being called.
 pub trait Callable: Debug + ToString {
@@ -13,7 +13,7 @@ pub trait Callable: Debug + ToString {
     /// arguments.
     fn call(
         &self,
-        environment: &mut Environment,
+        environment: &EnvironmentRef,
         arguments: &Vec<Value>,
     ) -> Result<Value, InterpreterError>;
 }
