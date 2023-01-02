@@ -250,10 +250,11 @@ impl Parser {
             self.loop_state.pop();
             result?
         });
-        Ok(ast::StmtNode::WhileStmt {
+        Ok(ast::StmtNode::LoopStmt {
             label,
             condition,
             body,
+            after_body: None,
         })
     }
 
@@ -309,22 +310,14 @@ impl Parser {
             self.loop_state.pop();
             result?
         };
-        let body_with_incr = if let Some(incr) = increment {
-            let incr_stmt = Box::new(ast::StmtNode::Expression(incr));
-            let body_block = if let ast::StmtNode::Block(mut body_block) = body_stmt {
-                body_block.push(incr_stmt);
-                body_block
-            } else {
-                vec![Box::new(body_stmt), incr_stmt]
-            };
-            ast::StmtNode::Block(body_block)
-        } else {
-            body_stmt
-        };
-        let while_stmt = ast::StmtNode::WhileStmt {
+        let while_stmt = ast::StmtNode::LoopStmt {
             label,
             condition,
-            body: Box::new(body_with_incr),
+            body: Box::new(body_stmt),
+            after_body: match increment {
+                Some(incr) => Some(Box::new(ast::StmtNode::Expression(incr))),
+                None => None,
+            },
         };
         if let Some(init_stmt) = initializer {
             Ok(ast::StmtNode::Block(vec![
