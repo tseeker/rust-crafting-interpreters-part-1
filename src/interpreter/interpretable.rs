@@ -122,6 +122,7 @@ impl ast::StmtNode {
             Value::Boolean(false) => String::from("false"),
             Value::Number(n) => n.to_string(),
             Value::String(s) => s,
+            Value::Callable(c) => c.borrow().to_string(),
         };
         println!("{}", output);
         Ok(InterpreterFlowControl::default())
@@ -243,6 +244,11 @@ impl Interpretable for ast::ExprNode {
             ast::ExprNode::Grouping { expression } => expression.interprete(environment),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
             ast::ExprNode::Variable { name } => Ok(environment.borrow().get(name)?.into()),
+            ast::ExprNode::Call {
+                callee,
+                right_paren,
+                arguments,
+            } => self.on_call(environment, callee, right_paren, arguments),
         }
     }
 }
@@ -374,5 +380,31 @@ impl ast::ExprNode {
             _ => panic!("Unsupported token type for litteral (token {:?})", value),
         };
         Ok(out_value.into())
+    }
+
+    /// Evaluate a function call.
+    fn on_call(
+        &self,
+        environment: &EnvironmentRef,
+        callee: &ast::ExprNode,
+        right_paren: &Token,
+        arguments: &Vec<ast::ExprNode>,
+    ) -> InterpreterResult {
+        let callee = callee.interprete(environment)?.result();
+        let arg_values = {
+            let mut v = Vec::with_capacity(arguments.len());
+            for argument in arguments.iter() {
+                v.push(argument.interprete(environment)?.result());
+            }
+            v
+        };
+        if let Value::Callable(callable) = &callee {
+            Ok(callable.borrow().call(environment, arg_values)?.into())
+        } else {
+            Err(InterpreterError::new(
+                right_paren,
+                "can only call functions and classes",
+            ))
+        }
     }
 }
