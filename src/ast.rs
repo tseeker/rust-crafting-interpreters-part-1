@@ -45,6 +45,17 @@ pub enum StmtNode {
     },
 }
 
+impl StmtNode {
+    /// Extract the list of statements from a block. Panic if the statement
+    /// is not a block.
+    pub fn extract_block_statements(self) -> Vec<StmtNode> {
+        match self {
+            Self::Block(stmts) => stmts,
+            _ => panic!("Statement is not a block"),
+        }
+    }
+}
+
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
