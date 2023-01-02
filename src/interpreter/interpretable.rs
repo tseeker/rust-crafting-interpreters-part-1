@@ -94,11 +94,12 @@ impl Interpretable for ast::StmtNode {
                 then_branch,
                 else_branch,
             } => self.on_if_statement(environment, condition, then_branch, else_branch),
-            ast::StmtNode::WhileStmt {
+            ast::StmtNode::LoopStmt {
                 label,
                 condition,
                 body,
-            } => self.on_while_statement(environment, label, condition, body),
+                after_body
+            } => self.on_loop_statement(environment, label, condition, body, after_body),
             ast::StmtNode::LoopControlStmt {
                 is_break,
                 loop_name,
@@ -171,12 +172,13 @@ impl ast::StmtNode {
     }
 
     /// Execute a while statement.
-    fn on_while_statement(
+    fn on_loop_statement(
         &self,
         environment: &EnvironmentRef,
         label: &Option<Token>,
         condition: &ast::ExprNode,
         body: &ast::StmtNode,
+        after_body: &Option<Box<ast::StmtNode>>,
     ) -> InterpreterResult {
         let ln = match label {
             None => None,
@@ -189,6 +191,15 @@ impl ast::StmtNode {
                 InterpreterFlowControl::Continue(lv) if lv == &ln => (),
                 InterpreterFlowControl::Break(lv) if lv == &ln => break,
                 _ => return Ok(result),
+            }
+            if let Some(stmt) = after_body {
+                let result = stmt.interprete(environment)?;
+                match &result {
+                    InterpreterFlowControl::Result(_) => (),
+                    InterpreterFlowControl::Continue(lv) if lv == &ln => (),
+                    InterpreterFlowControl::Break(lv) if lv == &ln => break,
+                    _ => return Ok(result),
+                }
             }
         }
         Ok(InterpreterFlowControl::default())
