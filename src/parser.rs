@@ -446,6 +446,7 @@ impl Parser {
             } else {
                 Some(self.parse_expression()?)
             };
+            self.consume(&TokenType::Semicolon, "';' expected after return statement")?;
             Ok(ast::StmtNode::Return {
                 token: ret_token.clone(),
                 value,
