@@ -49,7 +49,7 @@ impl Environment {
         if self.values.contains_key(&name.lexeme as &str) {
             Err(InterpreterError::new(
                 name,
-                &format!("variables '{}' already defined in scope", name.lexeme),
+                &format!("variable '{}' already defined in scope", name.lexeme),
             ))
         } else {
             self.values.insert(name.lexeme.clone(), value);
