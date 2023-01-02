@@ -157,8 +157,8 @@ impl ast::StmtNode {
         &self,
         environment: &EnvironmentRef,
         name: &Token,
-        params: &Vec<Token>,
-        body: &Vec<ast::StmtNode>,
+        params: &[Token],
+        body: &[ast::StmtNode],
     ) -> InterpreterResult {
         let fun = Function::new(Some(name), params, body);
         environment

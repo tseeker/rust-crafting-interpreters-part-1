@@ -22,13 +22,13 @@ pub(crate) struct Function {
 impl Function {
     pub(crate) fn new(
         name: Option<&Token>,
-        params: &Vec<Token>,
-        body: &Vec<ast::StmtNode>,
+        params: &[Token],
+        body: &[ast::StmtNode],
     ) -> Rc<RefCell<Self>> {
         let fun = Self {
-            name: name.map(|t| t.clone()),
-            params: params.clone(),
-            body: body.clone(),
+            name: name.cloned(),
+            params: params.to_owned(),
+            body: body.to_owned(),
         };
         Rc::new(RefCell::new(fun))
     }
@@ -48,7 +48,7 @@ impl Callable for Function {
         let param_env = Environment::create_child(environment);
         for (arg, value) in izip!(self.params.iter(), arguments.into_iter()) {
             // FIXME: duplicate parameter names should be detected in the parser
-            param_env.borrow_mut().define(&arg, Some(value))?;
+            param_env.borrow_mut().define(arg, Some(value))?;
         }
 
         let child = Environment::create_child(&param_env);
