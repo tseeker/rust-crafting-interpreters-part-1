@@ -567,6 +567,12 @@ impl Parser {
         let mut arguments = Vec::new();
         if !self.check(&TokenType::RightParen) {
             loop {
+                if arguments.len() == 255 {
+                    return Err(ParserError::new(
+                        self.peek(),
+                        "functions may not have more than 255 arguments",
+                    ));
+                }
                 arguments.push(self.parse_expression()?);
                 if self.expect(&[TokenType::Comma]).is_some() {
                     break;
