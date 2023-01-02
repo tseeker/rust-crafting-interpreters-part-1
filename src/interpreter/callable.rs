@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 use crate::errors::InterpreterError;
 
@@ -17,3 +17,6 @@ pub trait Callable: Debug + ToString {
         arguments: Vec<Value>,
     ) -> Result<Value, InterpreterError>;
 }
+
+/// A reference to a callable.
+pub type CallableRef = Rc<RefCell<dyn Callable>>;
