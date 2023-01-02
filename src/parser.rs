@@ -114,7 +114,7 @@ impl Parser {
     /// ```
     fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
-            self.parse_declaration()
+            self.parse_var_declaration()
         } else if self.expect(&[TokenType::LeftBrace]).is_some() {
             self.parse_block()
         } else if self.expect(&[TokenType::Address]).is_some() {
@@ -151,7 +151,7 @@ impl Parser {
     /// declaration := "var" IDENTIFIER ";"
     /// declaration := "var" IDENTIFIER "=" expression ";"
     /// ```
-    fn parse_declaration(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_var_declaration(&mut self) -> ParserResult<ast::StmtNode> {
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
             _ => return Err(ParserError::new(self.peek(), "expected variable name")),
@@ -270,7 +270,7 @@ impl Parser {
         let initializer = if self.expect(&[TokenType::Semicolon]).is_some() {
             None
         } else if self.expect(&[TokenType::Var]).is_some() {
-            Some(self.parse_declaration()?)
+            Some(self.parse_var_declaration()?)
         } else {
             Some(self.parse_expression_stmt()?)
         };
