@@ -250,7 +250,6 @@ impl AstDumper for ExprNode {
             }
 
             ExprNode::Lambda {
-                token: _,
                 params,
                 body,
             } => {
