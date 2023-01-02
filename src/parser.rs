@@ -200,7 +200,7 @@ impl Parser {
         )?;
         let params = {
             let mut params = Vec::new();
-            if !self.check(&TokenType::RightParen) {
+            if self.expect(&[TokenType::RightParen]).is_none() {
                 loop {
                     if params.len() >= 255 {
                         return Err(ParserError::new(
