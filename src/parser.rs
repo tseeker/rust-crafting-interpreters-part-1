@@ -440,15 +440,22 @@ impl Parser {
     /// return_statement := "return" expression? ";"
     /// ```
     fn parse_return_statement(&mut self, ret_token: &Token) -> ParserResult<ast::StmtNode> {
-        let value = if self.check(&TokenType::Semicolon) {
-            None
+        if self.can_use_return() {
+            let value = if self.check(&TokenType::Semicolon) {
+                None
+            } else {
+                Some(self.parse_expression()?)
+            };
+            Ok(ast::StmtNode::Return {
+                token: ret_token.clone(),
+                value,
+            })
         } else {
-            Some(self.parse_expression()?)
-        };
-        Ok(ast::StmtNode::Return {
-            token: ret_token.clone(),
-            value,
-        })
+            Err(ParserError::new(
+                ret_token,
+                "'return' found outside of function",
+            ))
+        }
     }
 
     /// Parse the following rule:
@@ -757,5 +764,18 @@ impl Parser {
             pos -= 1;
         }
         false
+    }
+
+    /// Check whether the `return` keyword can be used. This is true whenever
+    /// the first `LoopParsingState::None` found in the loop parsing state is
+    /// not the one at position 0.
+    fn can_use_return(&self) -> bool {
+        let mut pos = self.loop_state.len() - 1;
+        loop {
+            if self.loop_state[pos] == LoopParsingState::None {
+                return pos == 0;
+            }
+            pos -= 1;
+        }
     }
 }
