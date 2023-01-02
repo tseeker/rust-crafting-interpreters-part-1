@@ -87,6 +87,7 @@ impl Scanner {
             '+' => self.add_token(TokenType::Plus),
             ';' => self.add_token(TokenType::Semicolon),
             '*' => self.add_token(TokenType::Star),
+            '@' => self.add_token(TokenType::Address),
             // Slash is a special case as it may be a line comment
             '/' => {
                 if self.is_match('/') {
