@@ -10,7 +10,7 @@ use crate::{
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
     let env = Rc::new(RefCell::new(Environment::default()));
-    match ast.interprete(&env) {
+    match ast.interpret(&env) {
         Ok(v) => Some(v.result()),
         Err(e) => {
             e.report(err_hdl);
@@ -66,7 +66,7 @@ pub type InterpreterResult = Result<InterpreterFlowControl, InterpreterError>;
 
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
-    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult;
+    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult;
 }
 
 /* ----------------------------- *
@@ -74,9 +74,9 @@ pub trait Interpretable {
  * ----------------------------- */
 
 impl Interpretable for ast::ProgramNode {
-    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
+    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult {
         for stmt in self.0.iter() {
-            stmt.interprete(environment)?;
+            stmt.interpret(environment)?;
         }
         Ok(InterpreterFlowControl::default())
     }
@@ -87,9 +87,9 @@ impl Interpretable for ast::ProgramNode {
  * ------------------------------- */
 
 impl Interpretable for ast::StmtNode {
-    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
+    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult {
         match self {
-            ast::StmtNode::Expression(expr) => expr.interprete(environment),
+            ast::StmtNode::Expression(expr) => expr.interpret(environment),
             ast::StmtNode::Print(expr) => self.on_print(environment, expr),
             ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(environment, name, expr),
             ast::StmtNode::Block(statements) => self.on_block(environment, statements),
@@ -115,7 +115,7 @@ impl Interpretable for ast::StmtNode {
 impl ast::StmtNode {
     /// Handle the `print` statement.
     fn on_print(&self, environment: &EnvironmentRef, expr: &ast::ExprNode) -> InterpreterResult {
-        let value = expr.interprete(environment)?.result();
+        let value = expr.interpret(environment)?.result();
         let output = match value {
             Value::Nil => String::from("nil"),
             Value::Boolean(true) => String::from("true"),
@@ -136,7 +136,7 @@ impl ast::StmtNode {
         initializer: &Option<ast::ExprNode>,
     ) -> InterpreterResult {
         let variable = match initializer {
-            Some(expr) => Some(expr.interprete(environment)?.result()),
+            Some(expr) => Some(expr.interpret(environment)?.result()),
             None => None,
         };
         environment.borrow_mut().define(name, variable)?;
@@ -147,7 +147,7 @@ impl ast::StmtNode {
     fn on_block(&self, environment: &EnvironmentRef, stmts: &[ast::StmtNode]) -> InterpreterResult {
         let child = Environment::create_child(environment);
         for stmt in stmts.iter() {
-            let result = stmt.interprete(&child)?;
+            let result = stmt.interpret(&child)?;
             if result.is_flow_control() {
                 return Ok(result);
             }
@@ -163,10 +163,10 @@ impl ast::StmtNode {
         then_branch: &ast::StmtNode,
         else_branch: &Option<Box<ast::StmtNode>>,
     ) -> InterpreterResult {
-        if condition.interprete(environment)?.result().is_truthy() {
-            then_branch.interprete(environment)
+        if condition.interpret(environment)?.result().is_truthy() {
+            then_branch.interpret(environment)
         } else if let Some(else_stmt) = else_branch {
-            else_stmt.interprete(environment)
+            else_stmt.interpret(environment)
         } else {
             Ok(InterpreterFlowControl::default())
         }
@@ -182,8 +182,8 @@ impl ast::StmtNode {
         after_body: &Option<Box<ast::StmtNode>>,
     ) -> InterpreterResult {
         let ln = label.as_ref().map(|token| token.lexeme.clone());
-        while condition.interprete(environment)?.result().is_truthy() {
-            let result = body.interprete(environment)?;
+        while condition.interpret(environment)?.result().is_truthy() {
+            let result = body.interpret(environment)?;
             match &result {
                 InterpreterFlowControl::Result(_) => (),
                 InterpreterFlowControl::Continue(lv) if lv == &ln => (),
@@ -191,7 +191,7 @@ impl ast::StmtNode {
                 _ => return Ok(result),
             }
             if let Some(stmt) = after_body {
-                let result = stmt.interprete(environment)?;
+                let result = stmt.interpret(environment)?;
                 match &result {
                     InterpreterFlowControl::Result(_) => (),
                     InterpreterFlowControl::Continue(lv) if lv == &ln => (),
@@ -223,10 +223,10 @@ impl ast::StmtNode {
  * -------------------------------- */
 
 impl Interpretable for ast::ExprNode {
-    fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
+    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult {
         match self {
             ast::ExprNode::Assignment { name, value } => {
-                let value = value.interprete(environment)?.result();
+                let value = value.interpret(environment)?.result();
                 environment.borrow_mut().assign(name, value)?;
                 Ok(InterpreterFlowControl::default())
             }
@@ -241,7 +241,7 @@ impl Interpretable for ast::ExprNode {
                 right,
             } => self.on_binary(environment, left, operator, right),
             ast::ExprNode::Unary { operator, right } => self.on_unary(environment, operator, right),
-            ast::ExprNode::Grouping { expression } => expression.interprete(environment),
+            ast::ExprNode::Grouping { expression } => expression.interpret(environment),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
             ast::ExprNode::Variable { name } => Ok(environment.borrow().get(name)?.into()),
             ast::ExprNode::Call {
@@ -262,13 +262,13 @@ impl ast::ExprNode {
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let left_value = left.interprete(environment)?.result();
+        let left_value = left.interpret(environment)?.result();
         if operator.token_type == TokenType::Or && left_value.is_truthy()
             || operator.token_type == TokenType::And && !left_value.is_truthy()
         {
             Ok(left_value.into())
         } else {
-            right.interprete(environment)
+            right.interpret(environment)
         }
     }
 
@@ -280,8 +280,8 @@ impl ast::ExprNode {
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let left_value = left.interprete(environment)?.result();
-        let right_value = right.interprete(environment)?.result();
+        let left_value = left.interpret(environment)?.result();
+        let right_value = right.interpret(environment)?.result();
         match operator.token_type {
             TokenType::Plus => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b).into()),
@@ -350,7 +350,7 @@ impl ast::ExprNode {
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let right_value = right.interprete(environment)?.result();
+        let right_value = right.interpret(environment)?.result();
         match operator.token_type {
             TokenType::Minus => {
                 if let Value::Number(n) = right_value {
@@ -390,11 +390,11 @@ impl ast::ExprNode {
         right_paren: &Token,
         arguments: &Vec<ast::ExprNode>,
     ) -> InterpreterResult {
-        let callee = callee.interprete(environment)?.result();
+        let callee = callee.interpret(environment)?.result();
         let arg_values = {
             let mut v = Vec::with_capacity(arguments.len());
             for argument in arguments.iter() {
-                v.push(argument.interprete(environment)?.result());
+                v.push(argument.interpret(environment)?.result());
             }
             v
         };
