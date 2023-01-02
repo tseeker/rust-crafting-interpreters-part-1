@@ -73,6 +73,17 @@ pub enum ExprNode {
 
     /// A reference to a variable.
     Variable { name: Token },
+
+    /// A function call.
+    Call {
+        /// Token that contains the name of the function.
+        name: Token,
+        /// Right parenthesis that closes the list of arguments. Used to
+        /// report errors.
+        right_paren: Token,
+        /// The list of function arguments.
+        arguments: Vec<ExprNode>,
+    },
 }
 
 /* -------------------------------- *
@@ -187,6 +198,25 @@ impl AstDumper for ExprNode {
                     value.lexeme.clone()
                 } else {
                     panic!("Unexpected token type for token {:#?}", value)
+                }
+            }
+            ExprNode::Call {
+                name,
+                right_paren: _,
+                arguments,
+            } => {
+                if arguments.len() > 0 {
+                    format!(
+                        "( call {} {} )",
+                        name.lexeme,
+                        arguments
+                            .iter()
+                            .map(|arg| arg.dump())
+                            .collect::<Vec<String>>()
+                            .join(" ")
+                    )
+                } else {
+                    format!("( call {} )", name.lexeme)
                 }
             }
         }
