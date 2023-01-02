@@ -76,8 +76,8 @@ pub enum ExprNode {
 
     /// A function call.
     Call {
-        /// Token that contains the name of the function.
-        name: Token,
+        /// Expression that corresponds to the callable.
+        callee: Box<ExprNode>,
         /// Right parenthesis that closes the list of arguments. Used to
         /// report errors.
         right_paren: Token,
@@ -201,14 +201,15 @@ impl AstDumper for ExprNode {
                 }
             }
             ExprNode::Call {
-                name,
+                callee,
                 right_paren: _,
                 arguments,
             } => {
+                let callee = callee.dump();
                 if arguments.len() > 0 {
                     format!(
                         "( call {} {} )",
-                        name.lexeme,
+                        callee,
                         arguments
                             .iter()
                             .map(|arg| arg.dump())
@@ -216,7 +217,7 @@ impl AstDumper for ExprNode {
                             .join(" ")
                     )
                 } else {
-                    format!("( call {} )", name.lexeme)
+                    format!("( call {} )", callee)
                 }
             }
         }
