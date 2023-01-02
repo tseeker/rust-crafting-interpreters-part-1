@@ -98,18 +98,18 @@ impl Interpretable for ast::StmtNode {
             ast::StmtNode::Expression(expr) => expr.interpret(environment),
             ast::StmtNode::Print(expr) => self.on_print(environment, expr),
             ast::StmtNode::Block(statements) => self.on_block(environment, statements),
-            ast::StmtNode::IfStmt {
+            ast::StmtNode::If {
                 condition,
                 then_branch,
                 else_branch,
             } => self.on_if_statement(environment, condition, then_branch, else_branch),
-            ast::StmtNode::LoopStmt {
+            ast::StmtNode::Loop {
                 label,
                 condition,
                 body,
                 after_body,
             } => self.on_loop_statement(environment, label, condition, body, after_body),
-            ast::StmtNode::LoopControlStmt {
+            ast::StmtNode::LoopControl {
                 is_break,
                 loop_name,
             } => self.on_loop_control_statemement(*is_break, loop_name),

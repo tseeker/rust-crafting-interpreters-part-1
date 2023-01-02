@@ -26,20 +26,20 @@ pub enum StmtNode {
     /// A block containing multiple statements.
     Block(Vec<StmtNode>),
     /// A conditional statement.
-    IfStmt {
+    If {
         condition: ExprNode,
         then_branch: Box<StmtNode>,
         else_branch: Option<Box<StmtNode>>,
     },
     /// Loop statement.
-    LoopStmt {
+    Loop {
         label: Option<Token>,
         condition: ExprNode,
         body: Box<StmtNode>,
         after_body: Option<Box<StmtNode>>,
     },
     /// Break or continue statement.
-    LoopControlStmt {
+    LoopControl {
         is_break: bool,
         loop_name: Option<Token>,
     },
@@ -155,7 +155,7 @@ impl AstDumper for StmtNode {
                     .join(" ")
             ),
 
-            Self::IfStmt {
+            Self::If {
                 condition,
                 then_branch,
                 else_branch,
@@ -169,7 +169,7 @@ impl AstDumper for StmtNode {
                 ),
             },
 
-            Self::LoopStmt {
+            Self::Loop {
                 label,
                 condition,
                 body,
@@ -194,7 +194,7 @@ impl AstDumper for StmtNode {
                 )
             }
 
-            Self::LoopControlStmt {
+            Self::LoopControl {
                 is_break,
                 loop_name,
             } => {

@@ -261,7 +261,7 @@ impl Parser {
             Some(_) => Some(Box::new(self.parse_statement()?)),
             None => None,
         };
-        Ok(ast::StmtNode::IfStmt {
+        Ok(ast::StmtNode::If {
             condition: expression,
             then_branch,
             else_branch,
@@ -313,7 +313,7 @@ impl Parser {
             self.loop_state.pop();
             result?
         });
-        Ok(ast::StmtNode::LoopStmt {
+        Ok(ast::StmtNode::Loop {
             label,
             condition,
             body,
@@ -373,7 +373,7 @@ impl Parser {
             self.loop_state.pop();
             result?
         };
-        let while_stmt = ast::StmtNode::LoopStmt {
+        let while_stmt = ast::StmtNode::Loop {
             label,
             condition,
             body: Box::new(body_stmt),
@@ -420,7 +420,7 @@ impl Parser {
             &TokenType::Semicolon,
             "';' expected after loop control statement",
         )?;
-        Ok(ast::StmtNode::LoopControlStmt {
+        Ok(ast::StmtNode::LoopControl {
             is_break: stmt_token.token_type == TokenType::Break,
             loop_name,
         })
