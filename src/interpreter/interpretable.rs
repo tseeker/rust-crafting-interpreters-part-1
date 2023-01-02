@@ -7,6 +7,8 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
+use super::functions::Function;
+
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
     let env = Rc::new(RefCell::new(Environment::default()));
@@ -89,9 +91,12 @@ impl Interpretable for ast::ProgramNode {
 impl Interpretable for ast::StmtNode {
     fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult {
         match self {
+            ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(environment, name, expr),
+            ast::StmtNode::FunDecl { name, params, body } => {
+                self.on_fun_decl(environment, name, params, body)
+            }
             ast::StmtNode::Expression(expr) => expr.interpret(environment),
             ast::StmtNode::Print(expr) => self.on_print(environment, expr),
-            ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(environment, name, expr),
             ast::StmtNode::Block(statements) => self.on_block(environment, statements),
             ast::StmtNode::IfStmt {
                 condition,
@@ -140,6 +145,21 @@ impl ast::StmtNode {
             None => None,
         };
         environment.borrow_mut().define(name, variable)?;
+        Ok(InterpreterFlowControl::default())
+    }
+
+    /// Handle a function declaration.
+    fn on_fun_decl(
+        &self,
+        environment: &EnvironmentRef,
+        name: &Token,
+        params: &Vec<Token>,
+        body: &Vec<ast::StmtNode>,
+    ) -> InterpreterResult {
+        let fun = Function::new(name, params, body);
+        environment
+            .borrow_mut()
+            .define(name, Some(Value::Callable(fun)))?;
         Ok(InterpreterFlowControl::default())
     }
 
