@@ -9,6 +9,16 @@ use crate::{
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
+    loop_state: Vec<LoopParsingState>,
+}
+
+/// The state of the parser regarding loops. We may be parsing an unnamed or
+/// named loop, or we might not be parsing a loop at all.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LoopParsingState {
+    NoLoop,
+    UnnamedLoop,
+    NamedLoop(String),
 }
 
 /// The result of one of the parser's functions.
@@ -17,13 +27,20 @@ type ParserResult<T> = Result<T, ParserError>;
 impl Parser {
     /// Initialize the parser.
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+        Self {
+            tokens,
+            current: 0,
+            loop_state: Vec::default(),
+        }
     }
 
     /// Parse the tokens into an AST and return it, or return nothing if a
     /// parser error occurs.
     pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ProgramNode> {
-        self.parse_program(err_hdl)
+        self.loop_state.push(LoopParsingState::NoLoop);
+        let result = self.parse_program(err_hdl);
+        self.loop_state.pop();
+        result
     }
 
     /// Synchronize the parser after an error.
@@ -83,6 +100,7 @@ impl Parser {
     /// statement := if_statement
     /// statement := while_statement
     /// statement := for_statement
+    /// statement := loop_control_statement
     /// ```
     fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
@@ -92,9 +110,14 @@ impl Parser {
         } else if self.expect(&[TokenType::If]).is_some() {
             self.parse_if_statement()
         } else if self.expect(&[TokenType::While]).is_some() {
-            self.parse_while_statement()
+            self.loop_state.push(LoopParsingState::UnnamedLoop);
+            let result = self.parse_while_statement();
+            self.loop_state.pop();
+            result
         } else if self.expect(&[TokenType::For]).is_some() {
-            self.parse_for_statement()
+            self.parse_for_statement(LoopParsingState::UnnamedLoop)
+        } else if let Some(lcs) = self.expect(&[TokenType::Break, TokenType::Continue]) {
+            self.parse_loop_control_statement(&lcs)
         } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
@@ -195,7 +218,7 @@ impl Parser {
     /// for_initializer := expression
     /// for_initializer :=
     /// ```
-    fn parse_for_statement(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_for_statement(&mut self, loop_state: LoopParsingState) -> ParserResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'for'")?;
 
         let initializer = if self.expect(&[TokenType::Semicolon]).is_some() {
@@ -234,7 +257,12 @@ impl Parser {
 
         // Generate a while loop, with an optional initializer which may be
         // inside a specific block if the initializer declares a variable.
-        let body_stmt = self.parse_statement()?;
+        let body_stmt = {
+            self.loop_state.push(loop_state);
+            let result = self.parse_statement();
+            self.loop_state.pop();
+            result?
+        };
         let body_with_incr = if let Some(incr) = increment {
             let incr_stmt = Box::new(ast::StmtNode::Expression(incr));
             let body_block = if let ast::StmtNode::Block(mut body_block) = body_stmt {
@@ -259,6 +287,45 @@ impl Parser {
         } else {
             Ok(while_stmt)
         }
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// loop_control_statement := "break" ( IDENTIFIER )? ";"
+    /// loop_control_statement := "continue" ( IDENTIFIER )? ";"
+    /// ```
+    fn parse_loop_control_statement(&mut self, stmt_token: &Token) -> ParserResult<ast::StmtNode> {
+        if self.loop_state() == &LoopParsingState::NoLoop {
+            return Err(ParserError::new(
+                stmt_token,
+                &format!(
+                    "'{}' statement found outside of loop body",
+                    stmt_token.lexeme
+                ),
+            ));
+        }
+
+        let loop_name = if let TokenType::Identifier(_) = self.peek().token_type {
+            let name_token = self.advance().clone();
+            if !self.find_named_loop(&name_token.lexeme) {
+                return Err(ParserError::new(
+                    &name_token,
+                    &format!("no reachable loop named '{}'", name_token.lexeme),
+                ));
+            }
+            Some(name_token)
+        } else {
+            None
+        };
+
+        self.consume(
+            &TokenType::Semicolon,
+            "';' expected after loop control statement",
+        )?;
+        Ok(ast::StmtNode::LoopControlStmt {
+            is_break: stmt_token.token_type == TokenType::Break,
+            loop_name,
+        })
     }
 
     /// Parse the following rule:
@@ -508,5 +575,38 @@ impl Parser {
     /// Return a reference to the previous token in the stream.
     fn previous(&self) -> &Token {
         &self.tokens[self.current - 1]
+    }
+
+    /// Execute some code while setting the loop state. Once the function
+    /// is done running, remove the loop state.
+    fn with_loop_state<F, T>(&mut self, loop_state: LoopParsingState, mut function: F) -> T
+    where
+        F: FnMut() -> T,
+    {
+        self.loop_state.push(loop_state);
+        let result = function();
+        self.loop_state.pop();
+        result
+    }
+
+    /// Take a peek at the current loop state.
+    fn loop_state(&self) -> &LoopParsingState {
+        &self.loop_state[self.loop_state.len() - 1]
+    }
+
+    /// Find a loop with a given name in the loop state. Stops looking when
+    /// the first non-loop entry is reached.
+    fn find_named_loop(&self, name: &str) -> bool {
+        let mut pos = self.loop_state.len() - 1;
+        loop {
+            match &self.loop_state[pos] {
+                LoopParsingState::NoLoop => break,
+                LoopParsingState::UnnamedLoop => (),
+                LoopParsingState::NamedLoop(n) if n == name => return true,
+                LoopParsingState::NamedLoop(_) => (),
+            }
+            pos += 1;
+        }
+        false
     }
 }
