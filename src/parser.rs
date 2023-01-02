@@ -21,6 +21,15 @@ pub enum LoopParsingState {
     NamedLoop(String),
 }
 
+impl From<&Option<Token>> for LoopParsingState {
+    fn from(value: &Option<Token>) -> Self {
+        match &value {
+            None => LoopParsingState::UnnamedLoop,
+            Some(name) => LoopParsingState::NamedLoop(name.lexeme.clone()),
+        }
+    }
+}
+
 /// The result of one of the parser's functions.
 type ParserResult<T> = Result<T, ParserError>;
 
@@ -97,6 +106,7 @@ impl Parser {
     /// statement := "print" expression ";"
     /// statement := declaration ";"
     /// statement := block
+    /// statement := labelled_loop
     /// statement := if_statement
     /// statement := while_statement
     /// statement := for_statement
@@ -107,15 +117,14 @@ impl Parser {
             self.parse_declaration()
         } else if self.expect(&[TokenType::LeftBrace]).is_some() {
             self.parse_block()
+        } else if self.expect(&[TokenType::Address]).is_some() {
+            self.parse_labelled_loop()
         } else if self.expect(&[TokenType::If]).is_some() {
             self.parse_if_statement()
         } else if self.expect(&[TokenType::While]).is_some() {
-            self.loop_state.push(LoopParsingState::UnnamedLoop);
-            let result = self.parse_while_statement();
-            self.loop_state.pop();
-            result
+            self.parse_while_statement(None)
         } else if self.expect(&[TokenType::For]).is_some() {
-            self.parse_for_statement(LoopParsingState::UnnamedLoop)
+            self.parse_for_statement(None)
         } else if let Some(lcs) = self.expect(&[TokenType::Break, TokenType::Continue]) {
             self.parse_loop_control_statement(&lcs)
         } else if self.expect(&[TokenType::Print]).is_some() {
@@ -198,17 +207,54 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
+    /// labelled_loop := "@" IDENTIFIER while_statement
+    /// labelled_loop := "@" IDENTIFIER for_statement
+    /// ```
+    fn parse_labelled_loop(&mut self) -> ParserResult<ast::StmtNode> {
+        let name_token = match self.peek().token_type {
+            TokenType::Identifier(_) => self.advance().clone(),
+            _ => {
+                return Err(ParserError::new(
+                    self.peek(),
+                    "identifier expected after '@'",
+                ))
+            }
+        };
+
+        if self.expect(&[TokenType::While]).is_some() {
+            self.parse_while_statement(Some(name_token))
+        } else if self.expect(&[TokenType::For]).is_some() {
+            self.parse_for_statement(Some(name_token))
+        } else {
+            Err(ParserError::new(
+                self.peek(),
+                "'while' or 'for' expected after loop label",
+            ))
+        }
+    }
+
+    /// Parse the following rule:
+    /// ```
     /// while_statement := "while" "(" expression ")" statement
     /// ```
-    fn parse_while_statement(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_while_statement(&mut self, label: Option<Token>) -> ParserResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'while'")?;
         let condition = self.parse_expression()?;
         self.consume(
             &TokenType::RightParen,
             "expected ')' after condition in 'while' statement",
         )?;
-        let body = Box::new(self.parse_statement()?);
-        Ok(ast::StmtNode::WhileStmt { condition, body })
+        let body = Box::new({
+            self.loop_state.push(LoopParsingState::from(&label));
+            let result = self.parse_statement();
+            self.loop_state.pop();
+            result?
+        });
+        Ok(ast::StmtNode::WhileStmt {
+            label,
+            condition,
+            body,
+        })
     }
 
     /// Parse the following rules:
@@ -218,7 +264,7 @@ impl Parser {
     /// for_initializer := expression
     /// for_initializer :=
     /// ```
-    fn parse_for_statement(&mut self, loop_state: LoopParsingState) -> ParserResult<ast::StmtNode> {
+    fn parse_for_statement(&mut self, label: Option<Token>) -> ParserResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'for'")?;
 
         let initializer = if self.expect(&[TokenType::Semicolon]).is_some() {
@@ -258,7 +304,7 @@ impl Parser {
         // Generate a while loop, with an optional initializer which may be
         // inside a specific block if the initializer declares a variable.
         let body_stmt = {
-            self.loop_state.push(loop_state);
+            self.loop_state.push(LoopParsingState::from(&label));
             let result = self.parse_statement();
             self.loop_state.pop();
             result?
@@ -276,6 +322,7 @@ impl Parser {
             body_stmt
         };
         let while_stmt = ast::StmtNode::WhileStmt {
+            label,
             condition,
             body: Box::new(body_with_incr),
         };
