@@ -43,6 +43,11 @@ pub enum StmtNode {
         is_break: bool,
         loop_name: Option<Token>,
     },
+    /// Return statement.
+    Return {
+        token: Token,
+        value: Option<ExprNode>,
+    },
 }
 
 impl StmtNode {
@@ -204,6 +209,11 @@ impl AstDumper for StmtNode {
                     None => format!("( {} )", stmt),
                 }
             }
+
+            Self::Return { token: _, value } => match value {
+                Some(expr) => format!("( return {} )", expr.dump()),
+                None => "( return )".to_owned(),
+            },
         }
     }
 }
