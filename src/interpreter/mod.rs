@@ -1,5 +1,6 @@
 mod callable;
 mod environment;
+mod functions;
 mod interpretable;
 mod native_fn;
 mod value;
