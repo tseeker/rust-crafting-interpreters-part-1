@@ -525,6 +525,7 @@ impl Parser {
     /// primary := "(" expression ")"
     /// primary := FALSE | TRUE | NIL | STRING | NUMBER
     /// primary := IDENTIFIER
+    /// primary := call
     /// ```
     fn parse_primary(&mut self) -> ParserResult<ast::ExprNode> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
@@ -542,12 +543,44 @@ impl Parser {
                 TokenType::Number(_) | &TokenType::String(_) => Ok(ast::ExprNode::Litteral {
                     value: self.advance().clone(),
                 }),
-                TokenType::Identifier(_) => Ok(ast::ExprNode::Variable {
-                    name: self.advance().clone(),
-                }),
+                TokenType::Identifier(_) => {
+                    let identifier = self.advance().clone();
+                    if self.expect(&[TokenType::LeftParen]).is_some() {
+                        self.parse_call(identifier)
+                    } else {
+                        Ok(ast::ExprNode::Variable { name: identifier })
+                    }
+                }
                 _ => Err(ParserError::new(self.peek(), "expected expression")),
             }
         }
+    }
+
+    /// Parse the following rules:
+    /// ```
+    /// call      := IDENTIFIER "(" arguments? ")"
+    /// arguments := expression ( "," expression )*
+    /// ```
+    /// The `identifier` has already been read and is provided to the method;
+    /// the opening parenthesis has already been skipped.
+    fn parse_call(&mut self, name: Token) -> Result<ast::ExprNode, ParserError> {
+        let mut arguments = Vec::new();
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                arguments.push(self.parse_expression()?);
+                if self.expect(&[TokenType::Comma]).is_some() {
+                    break;
+                }
+            }
+        }
+        let right_paren = self
+            .consume(&TokenType::RightParen, "')' expected after arguments")?
+            .clone();
+        Ok(ast::ExprNode::Call {
+            name,
+            right_paren,
+            arguments,
+        })
     }
 
     /* -------------- *
