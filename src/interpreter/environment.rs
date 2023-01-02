@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{errors::InterpreterError, tokens::Token};
 
-use super::Value;
+use super::{native_fn, CallableRef, Value};
 
 /// A mutable reference to an environment.
 pub type EnvironmentRef = Rc<RefCell<Environment>>;
@@ -20,10 +20,11 @@ pub struct Environment {
 impl Default for Environment {
     /// Create the default global environment. This includes native functions.
     fn default() -> Self {
-        let env = Self {
+        let mut env = Self {
             enclosing: None,
             values: HashMap::new(),
         };
+        env.add_default_fun("clock", native_fn::clock());
         env
     }
 }
@@ -35,6 +36,12 @@ impl Environment {
             enclosing: Some(parent.clone()),
             values: HashMap::default(),
         }))
+    }
+
+    /// Add a default function to the environment.
+    fn add_default_fun(&mut self, name: &str, fun: CallableRef) {
+        let value = Some(Value::Callable(fun));
+        self.values.insert(name.to_owned(), value);
     }
 
     /// Define a new variable.
