@@ -685,11 +685,7 @@ impl Parser {
             })
         } else if let Some(token) = self.expect(&[TokenType::Fun]) {
             let (params, body) = self.parse_function_info(FunctionKind::Lambda)?;
-            Ok(ast::ExprNode::Lambda {
-                token,
-                params,
-                body,
-            })
+            Ok(ast::ExprNode::Lambda { params, body })
         } else if let Some(token) =
             self.expect(&[TokenType::False, TokenType::True, TokenType::Nil])
         {

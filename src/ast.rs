@@ -98,8 +98,6 @@ pub enum ExprNode {
 
     /// A lambda function.
     Lambda {
-        /// The `fun` token which creates the lambda.
-        token: Token,
         params: Vec<Token>,
         body: Vec<StmtNode>,
     },
