@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{
     ast,
     errors::{ErrorHandler, ParserError},
@@ -251,6 +253,7 @@ impl Parser {
 
         let mut params = Vec::new();
         if self.expect(&[TokenType::RightParen]).is_none() {
+            let mut names: HashSet<String> = HashSet::new();
             loop {
                 if params.len() >= kind.max_params() {
                     return Err(ParserError::new(
@@ -262,7 +265,14 @@ impl Parser {
                         ),
                     ));
                 }
-                if let TokenType::Identifier(_) = self.peek().token_type {
+                if let TokenType::Identifier(name) = &self.peek().token_type {
+                    if names.contains(name) {
+                        return Err(ParserError::new(
+                            self.peek(),
+                            &format!("duplicate {} parameter", kind.name()),
+                        ));
+                    }
+                    names.insert(name.to_owned());
                     params.push(self.advance().clone());
                 } else {
                     return Err(ParserError::new(self.peek(), "parameter name expected"));
