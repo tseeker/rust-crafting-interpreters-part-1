@@ -5,7 +5,7 @@ use itertools::izip;
 use crate::{
     ast,
     errors::InterpreterError,
-    interpreter::{Environment, Interpretable},
+    interpreter::{Environment, Interpretable, InterpreterFlowControl},
     tokens::Token,
 };
 
@@ -54,8 +54,10 @@ impl Callable for Function {
         let child = Environment::create_child(&param_env);
         for stmt in self.body.iter() {
             let result = stmt.interpret(&child)?;
-            if result.is_flow_control() {
-                panic!("unexpected flow control");
+            match result {
+                InterpreterFlowControl::Result(_) => (),
+                InterpreterFlowControl::Return(v) => return Ok(v),
+                _ => panic!("unexpected flow control {:?}", result),
             }
         }
         Ok(Value::Nil)
