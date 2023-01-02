@@ -14,19 +14,19 @@ use super::{Callable, EnvironmentRef, Value};
 /// A function implemented in the Lox-ish language.
 #[derive(Debug)]
 pub(crate) struct Function {
-    name: Token,
+    name: Option<Token>,
     params: Vec<Token>,
     body: Vec<ast::StmtNode>,
 }
 
 impl Function {
     pub(crate) fn new(
-        name: &Token,
+        name: Option<&Token>,
         params: &Vec<Token>,
         body: &Vec<ast::StmtNode>,
     ) -> Rc<RefCell<Self>> {
         let fun = Self {
-            name: name.clone(),
+            name: name.map(|t| t.clone()),
             params: params.clone(),
             body: body.clone(),
         };
@@ -66,6 +66,9 @@ impl Callable for Function {
 
 impl ToString for Function {
     fn to_string(&self) -> String {
-        format!("<fun {}>", self.name.lexeme)
+        match &self.name {
+            None => "<lambda>".to_owned(),
+            Some(token) => format!("<fun {}>", token.lexeme),
+        }
     }
 }
