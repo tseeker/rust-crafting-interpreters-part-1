@@ -206,7 +206,9 @@ impl AstDumper for ExprNode {
                 arguments,
             } => {
                 let callee = callee.dump();
-                if arguments.len() > 0 {
+                if arguments.is_empty() {
+                    format!("( call {} )", callee)
+                } else {
                     format!(
                         "( call {} {} )",
                         callee,
@@ -216,8 +218,6 @@ impl AstDumper for ExprNode {
                             .collect::<Vec<String>>()
                             .join(" ")
                     )
-                } else {
-                    format!("( call {} )", callee)
                 }
             }
         }

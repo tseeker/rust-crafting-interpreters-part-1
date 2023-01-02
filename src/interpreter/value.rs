@@ -28,8 +28,8 @@ impl Value {
     /// Check whether a value is truthy or not.
     pub fn is_truthy(&self) -> bool {
         match self {
-            &Self::Nil => false,
-            &Self::Boolean(b) => b,
+            Self::Nil => false,
+            Self::Boolean(b) => *b,
             _ => true,
         }
     }
