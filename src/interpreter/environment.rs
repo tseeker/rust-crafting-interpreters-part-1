@@ -11,10 +11,21 @@ pub type EnvironmentRef = Rc<RefCell<Environment>>;
 pub type Variable = Option<Value>;
 
 /// The execution environment.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Environment {
     enclosing: Option<EnvironmentRef>,
     values: HashMap<String, Variable>,
+}
+
+impl Default for Environment {
+    /// Create the default global environment. This includes native functions.
+    fn default() -> Self {
+        let env = Self {
+            enclosing: None,
+            values: HashMap::new(),
+        };
+        env
+    }
 }
 
 impl Environment {
