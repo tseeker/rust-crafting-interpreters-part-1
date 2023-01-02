@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use itertools::izip;
 
 use crate::{
@@ -17,17 +19,18 @@ pub(crate) struct Function {
     body: Vec<ast::StmtNode>,
 }
 
-impl From<&ast::StmtNode> for Function {
-    fn from(node: &ast::StmtNode) -> Self {
-        if let ast::StmtNode::FunDecl { name, params, body } = node {
-            Self {
-                name: name.clone(),
-                params: params.clone(),
-                body: body.clone(),
-            }
-        } else {
-            panic!("initializing Function from non-function statement");
-        }
+impl Function {
+    pub(crate) fn new(
+        name: &Token,
+        params: &Vec<Token>,
+        body: &Vec<ast::StmtNode>,
+    ) -> Rc<RefCell<Self>> {
+        let fun = Self {
+            name: name.clone(),
+            params: params.clone(),
+            body: body.clone(),
+        };
+        Rc::new(RefCell::new(fun))
     }
 }
 
