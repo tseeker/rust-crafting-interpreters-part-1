@@ -683,7 +683,7 @@ impl Parser {
             Ok(ast::ExprNode::Grouping {
                 expression: Box::new(expr),
             })
-        } else if let Some(token) = self.expect(&[TokenType::Fun]) {
+        } else if self.expect(&[TokenType::Fun]).is_some() {
             let (params, body) = self.parse_function_info(FunctionKind::Lambda)?;
             Ok(ast::ExprNode::Lambda { params, body })
         } else if let Some(token) =
