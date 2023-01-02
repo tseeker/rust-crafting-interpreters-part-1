@@ -773,7 +773,7 @@ impl Parser {
         let mut pos = self.loop_state.len() - 1;
         loop {
             if self.loop_state[pos] == LoopParsingState::None {
-                return pos == 0;
+                return pos != 0;
             }
             pos -= 1;
         }
