@@ -7,8 +7,46 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
+/// Interpreter flow control, which may be either a value, a loop break or a
+/// loop continuation.
+#[derive(Debug)]
+pub enum InterpreterFlowControl {
+    Result(Value),
+    Break(Option<String>),
+    Continue(Option<String>),
+}
+
+impl InterpreterFlowControl {
+    /// Return the result's value. If the flow control value does not represent
+    /// a result, panic.
+    fn result(self) -> Value {
+        match self {
+            Self::Result(v) => v,
+            other => panic!("Result expected, {:?} found instead", other),
+        }
+    }
+
+    /// Check whether a flow control value contains actual flow control
+    /// information.
+    fn is_flow_control(&self) -> bool {
+        matches!(self, Self::Break(_) | Self::Continue(_))
+    }
+}
+
+impl Default for InterpreterFlowControl {
+    fn default() -> Self {
+        Self::Result(Value::Nil)
+    }
+}
+
+impl Into<InterpreterFlowControl> for Value {
+    fn into(self: Self) -> InterpreterFlowControl {
+        InterpreterFlowControl::Result(self)
+    }
+}
+
 /// A result returned by some part of the interpreter.
-pub type InterpreterResult = Result<Value, InterpreterError>;
+pub type InterpreterResult = Result<InterpreterFlowControl, InterpreterError>;
 
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
@@ -19,7 +57,7 @@ pub trait Interpretable {
 pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
     let env = Rc::new(RefCell::new(Environment::default()));
     match ast.interprete(&env) {
-        Ok(v) => Some(v),
+        Ok(v) => Some(v.result()),
         Err(e) => {
             e.report(err_hdl);
             None
@@ -36,7 +74,7 @@ impl Interpretable for ast::ProgramNode {
         for stmt in self.0.iter() {
             stmt.interprete(environment)?;
         }
-        Ok(Value::Nil)
+        Ok(InterpreterFlowControl::default())
     }
 }
 
@@ -56,9 +94,15 @@ impl Interpretable for ast::StmtNode {
                 then_branch,
                 else_branch,
             } => self.on_if_statement(environment, condition, then_branch, else_branch),
-            ast::StmtNode::WhileStmt { condition, body } => {
-                self.on_while_statement(environment, condition, body)
-            }
+            ast::StmtNode::WhileStmt {
+                label,
+                condition,
+                body,
+            } => self.on_while_statement(environment, label, condition, body),
+            ast::StmtNode::LoopControlStmt {
+                is_break,
+                loop_name,
+            } => self.on_loop_control_statemement(*is_break, loop_name),
         }
     }
 }
@@ -66,7 +110,7 @@ impl Interpretable for ast::StmtNode {
 impl ast::StmtNode {
     /// Handle the `print` statement.
     fn on_print(&self, environment: &EnvironmentRef, expr: &ast::ExprNode) -> InterpreterResult {
-        let value = expr.interprete(environment)?;
+        let value = expr.interprete(environment)?.result();
         let output = match value {
             Value::Nil => String::from("nil"),
             Value::Boolean(true) => String::from("true"),
@@ -75,7 +119,7 @@ impl ast::StmtNode {
             Value::String(s) => s,
         };
         println!("{}", output);
-        Ok(Value::Nil)
+        Ok(InterpreterFlowControl::default())
     }
 
     /// Handle a variable declaration.
@@ -86,11 +130,11 @@ impl ast::StmtNode {
         initializer: &Option<ast::ExprNode>,
     ) -> InterpreterResult {
         let variable = match initializer {
-            Some(expr) => Some(expr.interprete(environment)?),
+            Some(expr) => Some(expr.interprete(environment)?.result()),
             None => None,
         };
         environment.borrow_mut().define(name, variable)?;
-        Ok(Value::Nil)
+        Ok(InterpreterFlowControl::default())
     }
 
     /// Execute the contents of a block.
@@ -101,9 +145,12 @@ impl ast::StmtNode {
     ) -> InterpreterResult {
         let child = Environment::create_child(environment);
         for stmt in stmts.iter() {
-            stmt.interprete(&child)?;
+            let result = stmt.interprete(&child)?;
+            if result.is_flow_control() {
+                return Ok(result);
+            }
         }
-        Ok(Value::Nil)
+        Ok(InterpreterFlowControl::default())
     }
 
     /// Execute an if statement.
@@ -114,12 +161,12 @@ impl ast::StmtNode {
         then_branch: &ast::StmtNode,
         else_branch: &Option<Box<ast::StmtNode>>,
     ) -> InterpreterResult {
-        if condition.interprete(environment)?.is_truthy() {
+        if condition.interprete(environment)?.result().is_truthy() {
             then_branch.interprete(environment)
         } else if let Some(else_stmt) = else_branch {
             else_stmt.interprete(environment)
         } else {
-            Ok(Value::Nil)
+            Ok(InterpreterFlowControl::default())
         }
     }
 
@@ -127,13 +174,41 @@ impl ast::StmtNode {
     fn on_while_statement(
         &self,
         environment: &EnvironmentRef,
+        label: &Option<Token>,
         condition: &ast::ExprNode,
         body: &ast::StmtNode,
     ) -> InterpreterResult {
-        while condition.interprete(environment)?.is_truthy() {
-            body.interprete(environment)?;
+        let ln = match label {
+            None => None,
+            Some(token) => Some(token.lexeme.clone()),
+        };
+        while condition.interprete(environment)?.result().is_truthy() {
+            let result = body.interprete(environment)?;
+            match &result {
+                InterpreterFlowControl::Result(_) => (),
+                InterpreterFlowControl::Continue(lv) if lv == &ln => (),
+                InterpreterFlowControl::Break(lv) if lv == &ln => break,
+                _ => return Ok(result),
+            }
         }
-        Ok(Value::Nil)
+        Ok(InterpreterFlowControl::default())
+    }
+
+    /// Execute a loop control statement.
+    fn on_loop_control_statemement(
+        &self,
+        is_break: bool,
+        label: &Option<Token>,
+    ) -> InterpreterResult {
+        let name = match label {
+            None => None,
+            Some(token) => Some(token.lexeme.clone()),
+        };
+        if is_break {
+            Ok(InterpreterFlowControl::Break(name))
+        } else {
+            Ok(InterpreterFlowControl::Continue(name))
+        }
     }
 }
 
@@ -145,8 +220,9 @@ impl Interpretable for ast::ExprNode {
     fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult {
         match self {
             ast::ExprNode::Assignment { name, value } => {
-                let value = value.interprete(environment)?;
-                environment.borrow_mut().assign(name, value)
+                let value = value.interprete(environment)?.result();
+                environment.borrow_mut().assign(name, value)?;
+                Ok(InterpreterFlowControl::default())
             }
             ast::ExprNode::Logical {
                 left,
@@ -161,7 +237,7 @@ impl Interpretable for ast::ExprNode {
             ast::ExprNode::Unary { operator, right } => self.on_unary(environment, operator, right),
             ast::ExprNode::Grouping { expression } => expression.interprete(environment),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
-            ast::ExprNode::Variable { name } => environment.borrow().get(name),
+            ast::ExprNode::Variable { name } => Ok(environment.borrow().get(name)?.into()),
         }
     }
 }
@@ -175,11 +251,11 @@ impl ast::ExprNode {
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let left_value = left.interprete(environment)?;
+        let left_value = left.interprete(environment)?.result();
         if operator.token_type == TokenType::Or && left_value.is_truthy() {
-            Ok(left_value)
+            Ok(left_value.into())
         } else if operator.token_type == TokenType::And && !left_value.is_truthy() {
-            Ok(left_value)
+            Ok(left_value.into())
         } else {
             right.interprete(environment)
         }
@@ -193,23 +269,25 @@ impl ast::ExprNode {
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let left_value = left.interprete(environment)?;
-        let right_value = right.interprete(environment)?;
+        let left_value = left.interprete(environment)?.result();
+        let right_value = right.interprete(environment)?.result();
         match operator.token_type {
             TokenType::Plus => match (left_value, right_value) {
-                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b)),
-                (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b)),
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b).into()),
+                (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b).into()),
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
             TokenType::Minus => match (left_value, right_value) {
-                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b)),
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b).into()),
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
             TokenType::Star => match (left_value, right_value) {
-                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a * b)),
-                (Value::String(a), Value::Number(b)) => Ok(Value::String(a.repeat(b as usize))),
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a * b).into()),
+                (Value::String(a), Value::Number(b)) => {
+                    Ok(Value::String(a.repeat(b as usize)).into())
+                }
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
@@ -218,34 +296,34 @@ impl ast::ExprNode {
                     if b == 0. {
                         Err(InterpreterError::new(operator, "division by zero"))
                     } else {
-                        Ok(Value::Number(a / b))
+                        Ok(Value::Number(a / b).into())
                     }
                 }
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
             TokenType::Greater => match (left_value, right_value) {
-                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a > b)),
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a > b).into()),
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
             TokenType::GreaterEqual => match (left_value, right_value) {
-                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a >= b)),
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a >= b).into()),
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
             TokenType::Less => match (left_value, right_value) {
-                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a < b)),
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a < b).into()),
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
             TokenType::LessEqual => match (left_value, right_value) {
-                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a <= b)),
+                (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a <= b).into()),
                 _ => Err(InterpreterError::new(operator, "type error")),
             },
 
-            TokenType::EqualEqual => Ok(Value::Boolean(left_value == right_value)),
-            TokenType::BangEqual => Ok(Value::Boolean(left_value != right_value)),
+            TokenType::EqualEqual => Ok(Value::Boolean(left_value == right_value).into()),
+            TokenType::BangEqual => Ok(Value::Boolean(left_value != right_value).into()),
 
             _ => panic!(
                 "Unsupported token type for binary operator (token {:?})",
@@ -261,17 +339,17 @@ impl ast::ExprNode {
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let right_value = right.interprete(environment)?;
+        let right_value = right.interprete(environment)?.result();
         match operator.token_type {
             TokenType::Minus => {
                 if let Value::Number(n) = right_value {
-                    Ok(Value::Number(-n))
+                    Ok(Value::Number(-n).into())
                 } else {
                     Err(InterpreterError::new(operator, "number expected"))
                 }
             }
 
-            TokenType::Bang => Ok(Value::Boolean(!right_value.is_truthy())),
+            TokenType::Bang => Ok(Value::Boolean(!right_value.is_truthy()).into()),
 
             _ => panic!(
                 "Unsupported token type for unary operator (token {:?})",
@@ -282,13 +360,14 @@ impl ast::ExprNode {
 
     /// Evaluate a litteral.
     fn on_litteral(&self, value: &Token) -> InterpreterResult {
-        match &value.token_type {
-            TokenType::Nil => Ok(Value::Nil),
-            TokenType::True => Ok(Value::Boolean(true)),
-            TokenType::False => Ok(Value::Boolean(false)),
-            TokenType::Number(n) => Ok(Value::Number(*n)),
-            TokenType::String(s) => Ok(Value::String(s.clone())),
+        let out_value = match &value.token_type {
+            TokenType::Nil => Value::Nil,
+            TokenType::True => Value::Boolean(true),
+            TokenType::False => Value::Boolean(false),
+            TokenType::Number(n) => Value::Number(*n),
+            TokenType::String(s) => Value::String(s.clone()),
             _ => panic!("Unsupported token type for litteral (token {:?})", value),
-        }
+        };
+        Ok(out_value.into())
     }
 }
