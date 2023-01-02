@@ -96,6 +96,14 @@ pub enum ExprNode {
     /// A reference to a variable.
     Variable { name: Token },
 
+    /// A lambda function.
+    Lambda {
+        /// The `fun` token which creates the lambda.
+        token: Token,
+        params: Vec<Token>,
+        body: Vec<StmtNode>,
+    },
+
     /// A function call.
     Call {
         /// Expression that corresponds to the callable.
@@ -242,6 +250,26 @@ impl AstDumper for ExprNode {
                     panic!("Unexpected token type for token {:#?}", value)
                 }
             }
+
+            ExprNode::Lambda {
+                token: _,
+                params,
+                body,
+            } => {
+                format!(
+                    "( fun ({}) {} )",
+                    params
+                        .iter()
+                        .map(|token| &token.lexeme as &str)
+                        .collect::<Vec<&str>>()
+                        .join(" "),
+                    body.iter()
+                        .map(|stmt| stmt.dump())
+                        .collect::<Vec<String>>()
+                        .join(" ")
+                )
+            }
+
             ExprNode::Call {
                 callee,
                 right_paren: _,
