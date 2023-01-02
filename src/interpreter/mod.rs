@@ -1,6 +1,7 @@
 mod callable;
 mod environment;
 mod interpretable;
+mod native_fn;
 mod value;
 
 pub use callable::Callable;
