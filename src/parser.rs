@@ -640,7 +640,7 @@ impl Parser {
                 LoopParsingState::NamedLoop(n) if n == name => return true,
                 LoopParsingState::NamedLoop(_) => (),
             }
-            pos += 1;
+            pos -= 1;
         }
         false
     }
