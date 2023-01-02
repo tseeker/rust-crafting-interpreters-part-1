@@ -227,7 +227,12 @@ impl Parser {
             &TokenType::LeftBrace,
             &format!("'{{' expected before {} body", kind),
         )?;
-        let block = self.parse_block()?;
+        let block = {
+            self.loop_state.push(LoopParsingState::None);
+            let result = self.parse_block();
+            self.loop_state.pop();
+            result?
+        };
         Ok(ast::StmtNode::FunDecl {
             name,
             params,
