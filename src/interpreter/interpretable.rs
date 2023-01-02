@@ -35,7 +35,7 @@ pub enum InterpreterFlowControl {
 impl InterpreterFlowControl {
     /// Return the result's value. If the flow control value does not represent
     /// a result, panic.
-    fn result(self) -> Value {
+    pub(crate) fn result(self) -> Value {
         match self {
             Self::Result(v) => v,
             other => panic!("Result expected, {:?} found instead", other),
@@ -44,7 +44,7 @@ impl InterpreterFlowControl {
 
     /// Check whether a flow control value contains actual flow control
     /// information.
-    fn is_flow_control(&self) -> bool {
+    pub(crate) fn is_flow_control(&self) -> bool {
         matches!(self, Self::Break(_) | Self::Continue(_))
     }
 }
