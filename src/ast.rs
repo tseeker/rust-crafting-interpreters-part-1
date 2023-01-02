@@ -30,10 +30,11 @@ pub enum StmtNode {
         condition: ExprNode,
         body: Box<StmtNode>,
     },
-    /// Break statement
-    BreakStmt,
-    /// Continue statement
-    ContinueStmt,
+    /// Break or continue statement.
+    LoopControlStmt {
+        is_break: bool,
+        loop_name: Option<Token>,
+    },
 }
 
 /// An AST node that represents an expression.
@@ -97,8 +98,6 @@ impl AstDumper for StmtNode {
         match self {
             Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name.lexeme, expr.dump()),
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
-            Self::BreakStmt => String::from("break"),
-            Self::ContinueStmt => String::from("continue"),
             Self::Expression(expr) => format!("{}", expr.dump()),
             Self::Print(expr) => format!("(print {})", expr.dump()),
 
@@ -127,6 +126,17 @@ impl AstDumper for StmtNode {
 
             Self::WhileStmt { condition, body } => {
                 format!("( while {} {} )", condition.dump(), body.dump())
+            }
+
+            Self::LoopControlStmt {
+                is_break,
+                loop_name,
+            } => {
+                let stmt = if *is_break { "break" } else { "continue" };
+                match loop_name {
+                    Some(name) => format!("( {} {} )", stmt, name.lexeme),
+                    None => format!("( {} )", stmt),
+                }
             }
         }
     }
