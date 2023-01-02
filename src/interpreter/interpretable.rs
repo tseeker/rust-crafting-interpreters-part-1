@@ -160,7 +160,7 @@ impl ast::StmtNode {
         params: &Vec<Token>,
         body: &Vec<ast::StmtNode>,
     ) -> InterpreterResult {
-        let fun = Function::new(name, params, body);
+        let fun = Function::new(Some(name), params, body);
         environment
             .borrow_mut()
             .define(name, Some(Value::Callable(fun)))?;
@@ -286,6 +286,9 @@ impl Interpretable for ast::ExprNode {
                 right_paren,
                 arguments,
             } => self.on_call(environment, callee, right_paren, arguments),
+            ast::ExprNode::Lambda { params, body } => {
+                Ok(Value::Callable(Function::new(None, params, body)).into())
+            }
         }
     }
 }
