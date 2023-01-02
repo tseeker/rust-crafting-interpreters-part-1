@@ -593,7 +593,6 @@ impl Parser {
     /// primary := "(" expression ")"
     /// primary := FALSE | TRUE | NIL | STRING | NUMBER
     /// primary := IDENTIFIER
-    /// primary := call
     /// ```
     fn parse_primary(&mut self) -> ParserResult<ast::ExprNode> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
