@@ -355,6 +355,7 @@ impl Parser {
         let loop_name = if let TokenType::Identifier(_) = self.peek().token_type {
             let name_token = self.advance().clone();
             if !self.find_named_loop(&name_token.lexeme) {
+                self.expect(&[TokenType::Semicolon]);
                 return Err(ParserError::new(
                     &name_token,
                     &format!("no reachable loop named '{}'", name_token.lexeme),
