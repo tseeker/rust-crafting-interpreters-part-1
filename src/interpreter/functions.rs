@@ -47,8 +47,7 @@ impl Callable for Function {
         assert_eq!(arguments.len(), self.arity());
         let param_env = Environment::create_child(environment);
         for (arg, value) in izip!(self.params.iter(), arguments.into_iter()) {
-            // FIXME: duplicate parameter names should be detected in the parser
-            param_env.borrow_mut().define(arg, Some(value))?;
+            param_env.borrow_mut().define(arg, Some(value)).unwrap();
         }
 
         let child = Environment::create_child(&param_env);
