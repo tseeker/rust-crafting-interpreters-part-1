@@ -7,6 +7,22 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
+/// Evaluate an interpretable, returning its value.
+pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
+    let env = Rc::new(RefCell::new(Environment::default()));
+    match ast.interprete(&env) {
+        Ok(v) => Some(v.result()),
+        Err(e) => {
+            e.report(err_hdl);
+            None
+        }
+    }
+}
+
+/* ------- *
+ * HELPERS *
+ * ------- */
+
 /// Interpreter flow control, which may be either a value, a loop break or a
 /// loop continuation.
 #[derive(Debug)]
@@ -51,18 +67,6 @@ pub type InterpreterResult = Result<InterpreterFlowControl, InterpreterError>;
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
     fn interprete(&self, environment: &EnvironmentRef) -> InterpreterResult;
-}
-
-/// Evaluate an interpretable, returning its value.
-pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
-    let env = Rc::new(RefCell::new(Environment::default()));
-    match ast.interprete(&env) {
-        Ok(v) => Some(v.result()),
-        Err(e) => {
-            e.report(err_hdl);
-            None
-        }
-    }
 }
 
 /* ----------------------------- *
