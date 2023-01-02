@@ -111,6 +111,7 @@ impl Parser {
     /// statement := while_statement
     /// statement := for_statement
     /// statement := loop_control_statement
+    /// statement := return_statement
     /// ```
     fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
@@ -129,6 +130,8 @@ impl Parser {
             self.parse_for_statement(None)
         } else if let Some(lcs) = self.expect(&[TokenType::Break, TokenType::Continue]) {
             self.parse_loop_control_statement(&lcs)
+        } else if let Some(ret) = self.expect(&[TokenType::Return]) {
+            self.parse_return_statement(&ret)
         } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
@@ -423,6 +426,22 @@ impl Parser {
         Ok(ast::StmtNode::LoopControl {
             is_break: stmt_token.token_type == TokenType::Break,
             loop_name,
+        })
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// return_statement := "return" expression? ";"
+    /// ```
+    fn parse_return_statement(&mut self, ret_token: &Token) -> ParserResult<ast::StmtNode> {
+        let value = if self.check(&TokenType::Semicolon) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        Ok(ast::StmtNode::Return {
+            token: ret_token.clone(),
+            value,
         })
     }
 
