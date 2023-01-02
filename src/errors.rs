@@ -68,6 +68,7 @@ impl ParserError {
 #[derive(Debug, Clone)]
 pub struct InterpreterError {
     line: usize,
+    pos: String,
     message: String,
 }
 
@@ -76,12 +77,13 @@ impl InterpreterError {
     pub fn new(token: &Token, message: &str) -> Self {
         Self {
             line: token.line,
+            pos: format!(" at '{}'", token.lexeme),
             message: String::from(message),
         }
     }
 
     /// Report the error to an error handler.
     pub fn report(&self, err_hdl: &mut ErrorHandler) {
-        err_hdl.report(ErrorType::Runtime, self.line, "", &self.message);
+        err_hdl.report(ErrorType::Runtime, self.line, &self.pos, &self.message);
     }
 }
