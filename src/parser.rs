@@ -624,18 +624,6 @@ impl Parser {
         &self.tokens[self.current - 1]
     }
 
-    /// Execute some code while setting the loop state. Once the function
-    /// is done running, remove the loop state.
-    fn with_loop_state<F, T>(&mut self, loop_state: LoopParsingState, mut function: F) -> T
-    where
-        F: FnMut() -> T,
-    {
-        self.loop_state.push(loop_state);
-        let result = function();
-        self.loop_state.pop();
-        result
-    }
-
     /// Take a peek at the current loop state.
     fn loop_state(&self) -> &LoopParsingState {
         &self.loop_state[self.loop_state.len() - 1]
