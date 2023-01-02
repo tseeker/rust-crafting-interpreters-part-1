@@ -104,7 +104,8 @@ impl Parser {
     /// ```
     /// statement := expression ";"
     /// statement := "print" expression ";"
-    /// statement := declaration ";"
+    /// statement := var_declaration ";"
+    /// statement := fun_declaration ";"
     /// statement := block
     /// statement := labelled_loop
     /// statement := if_statement
