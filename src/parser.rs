@@ -638,7 +638,7 @@ impl Parser {
                     ));
                 }
                 arguments.push(self.parse_expression()?);
-                if self.expect(&[TokenType::Comma]).is_some() {
+                if self.expect(&[TokenType::Comma]).is_none() {
                     break;
                 }
             }
