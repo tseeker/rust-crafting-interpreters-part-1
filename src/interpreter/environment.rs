@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{errors::InterpreterError, tokens::Token};
 
-use super::{InterpreterResult, Value};
+use super::Value;
 
 /// A mutable reference to an environment.
 pub type EnvironmentRef = Rc<RefCell<Environment>>;
@@ -40,7 +40,7 @@ impl Environment {
     }
 
     /// Get the value of a variable.
-    pub fn get(&self, name: &Token) -> InterpreterResult {
+    pub fn get(&self, name: &Token) -> Result<Value, InterpreterError> {
         match self.values.get(&name.lexeme as &str) {
             None => match &self.enclosing {
                 None => Err(InterpreterError::new(
@@ -58,10 +58,10 @@ impl Environment {
     }
 
     /// Assign a value to an existing variable.
-    pub fn assign(&mut self, name: &Token, value: Value) -> InterpreterResult {
+    pub fn assign(&mut self, name: &Token, value: Value) -> Result<(), InterpreterError> {
         if self.values.contains_key(&name.lexeme as &str) {
             self.values.insert(name.lexeme.clone(), Some(value));
-            Ok(Value::Nil)
+            Ok(())
         } else {
             match &mut self.enclosing {
                 None => Err(InterpreterError::new(
