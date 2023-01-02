@@ -14,6 +14,6 @@ pub trait Callable: Debug + ToString {
     fn call(
         &self,
         environment: &EnvironmentRef,
-        arguments: &Vec<Value>,
+        arguments: Vec<Value>,
     ) -> Result<Value, InterpreterError>;
 }
