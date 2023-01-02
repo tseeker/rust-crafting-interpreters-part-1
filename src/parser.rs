@@ -15,17 +15,17 @@ pub struct Parser {
 /// The state of the parser regarding loops. We may be parsing an unnamed or
 /// named loop, or we might not be parsing a loop at all.
 #[derive(Debug, Clone, PartialEq)]
-pub enum LoopParsingState {
-    NoLoop,
-    UnnamedLoop,
-    NamedLoop(String),
+enum LoopParsingState {
+    None,
+    Unnamed,
+    Named(String),
 }
 
 impl From<&Option<Token>> for LoopParsingState {
     fn from(value: &Option<Token>) -> Self {
         match &value {
-            None => LoopParsingState::UnnamedLoop,
-            Some(name) => LoopParsingState::NamedLoop(name.lexeme.clone()),
+            None => LoopParsingState::Unnamed,
+            Some(name) => LoopParsingState::Named(name.lexeme.clone()),
         }
     }
 }
@@ -46,7 +46,7 @@ impl Parser {
     /// Parse the tokens into an AST and return it, or return nothing if a
     /// parser error occurs.
     pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ProgramNode> {
-        self.loop_state.push(LoopParsingState::NoLoop);
+        self.loop_state.push(LoopParsingState::None);
         let result = self.parse_program(err_hdl);
         self.loop_state.pop();
         result
@@ -172,10 +172,9 @@ impl Parser {
     /// block := "{" statement* "}"
     /// ```
     fn parse_block(&mut self) -> ParserResult<ast::StmtNode> {
-        let mut stmts: Vec<Box<ast::StmtNode>> = Vec::new();
+        let mut stmts: Vec<ast::StmtNode> = Vec::new();
         while !(self.check(&TokenType::RightBrace) || self.is_at_end()) {
-            let stmt = self.parse_statement()?;
-            stmts.push(Box::new(stmt));
+            stmts.push(self.parse_statement()?);
         }
         self.consume(&TokenType::RightBrace, "expected '}' after block.")?;
         Ok(ast::StmtNode::Block(stmts))
@@ -314,16 +313,10 @@ impl Parser {
             label,
             condition,
             body: Box::new(body_stmt),
-            after_body: match increment {
-                Some(incr) => Some(Box::new(ast::StmtNode::Expression(incr))),
-                None => None,
-            },
+            after_body: increment.map(|incr| Box::new(ast::StmtNode::Expression(incr))),
         };
         if let Some(init_stmt) = initializer {
-            Ok(ast::StmtNode::Block(vec![
-                Box::new(init_stmt),
-                Box::new(while_stmt),
-            ]))
+            Ok(ast::StmtNode::Block(vec![init_stmt, while_stmt]))
         } else {
             Ok(while_stmt)
         }
@@ -335,7 +328,7 @@ impl Parser {
     /// loop_control_statement := "continue" ( IDENTIFIER )? ";"
     /// ```
     fn parse_loop_control_statement(&mut self, stmt_token: &Token) -> ParserResult<ast::StmtNode> {
-        if self.loop_state() == &LoopParsingState::NoLoop {
+        if self.loop_state() == &LoopParsingState::None {
             return Err(ParserError::new(
                 stmt_token,
                 &format!(
@@ -629,10 +622,10 @@ impl Parser {
         let mut pos = self.loop_state.len() - 1;
         loop {
             match &self.loop_state[pos] {
-                LoopParsingState::NoLoop => break,
-                LoopParsingState::UnnamedLoop => (),
-                LoopParsingState::NamedLoop(n) if n == name => return true,
-                LoopParsingState::NamedLoop(_) => (),
+                LoopParsingState::None => break,
+                LoopParsingState::Unnamed => (),
+                LoopParsingState::Named(n) if n == name => return true,
+                LoopParsingState::Named(_) => (),
             }
             pos -= 1;
         }

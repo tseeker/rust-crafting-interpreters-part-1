@@ -39,9 +39,9 @@ impl Default for InterpreterFlowControl {
     }
 }
 
-impl Into<InterpreterFlowControl> for Value {
-    fn into(self: Self) -> InterpreterFlowControl {
-        InterpreterFlowControl::Result(self)
+impl From<Value> for InterpreterFlowControl {
+    fn from(value: Value) -> Self {
+        Self::Result(value)
     }
 }
 
@@ -98,7 +98,7 @@ impl Interpretable for ast::StmtNode {
                 label,
                 condition,
                 body,
-                after_body
+                after_body,
             } => self.on_loop_statement(environment, label, condition, body, after_body),
             ast::StmtNode::LoopControlStmt {
                 is_break,
@@ -139,11 +139,7 @@ impl ast::StmtNode {
     }
 
     /// Execute the contents of a block.
-    fn on_block(
-        &self,
-        environment: &EnvironmentRef,
-        stmts: &Vec<Box<ast::StmtNode>>,
-    ) -> InterpreterResult {
+    fn on_block(&self, environment: &EnvironmentRef, stmts: &[ast::StmtNode]) -> InterpreterResult {
         let child = Environment::create_child(environment);
         for stmt in stmts.iter() {
             let result = stmt.interprete(&child)?;
@@ -180,10 +176,7 @@ impl ast::StmtNode {
         body: &ast::StmtNode,
         after_body: &Option<Box<ast::StmtNode>>,
     ) -> InterpreterResult {
-        let ln = match label {
-            None => None,
-            Some(token) => Some(token.lexeme.clone()),
-        };
+        let ln = label.as_ref().map(|token| token.lexeme.clone());
         while condition.interprete(environment)?.result().is_truthy() {
             let result = body.interprete(environment)?;
             match &result {
@@ -211,10 +204,7 @@ impl ast::StmtNode {
         is_break: bool,
         label: &Option<Token>,
     ) -> InterpreterResult {
-        let name = match label {
-            None => None,
-            Some(token) => Some(token.lexeme.clone()),
-        };
+        let name = label.as_ref().map(|token| token.lexeme.clone());
         if is_break {
             Ok(InterpreterFlowControl::Break(name))
         } else {
@@ -263,9 +253,9 @@ impl ast::ExprNode {
         right: &ast::ExprNode,
     ) -> InterpreterResult {
         let left_value = left.interprete(environment)?.result();
-        if operator.token_type == TokenType::Or && left_value.is_truthy() {
-            Ok(left_value.into())
-        } else if operator.token_type == TokenType::And && !left_value.is_truthy() {
+        if operator.token_type == TokenType::Or && left_value.is_truthy()
+            || operator.token_type == TokenType::And && !left_value.is_truthy()
+        {
             Ok(left_value.into())
         } else {
             right.interprete(environment)

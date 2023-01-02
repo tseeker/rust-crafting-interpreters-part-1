@@ -18,7 +18,7 @@ pub enum StmtNode {
     /// The print statement
     Print(ExprNode),
     /// A block containing multiple statements.
-    Block(Vec<Box<StmtNode>>),
+    Block(Vec<StmtNode>),
     /// A conditional statement.
     IfStmt {
         condition: ExprNode,
@@ -100,7 +100,7 @@ impl AstDumper for StmtNode {
         match self {
             Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name.lexeme, expr.dump()),
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
-            Self::Expression(expr) => format!("{}", expr.dump()),
+            Self::Expression(expr) => expr.dump(),
             Self::Print(expr) => format!("(print {})", expr.dump()),
 
             Self::Block(stmts) => format!(
