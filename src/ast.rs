@@ -13,6 +13,12 @@ pub struct ProgramNode(pub Vec<StmtNode>);
 pub enum StmtNode {
     /// A variable declaration
     VarDecl(Token, Option<ExprNode>),
+    /// A function declaration
+    FunDecl {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<StmtNode>,
+    },
     /// An single expression
     Expression(ExprNode),
     /// The print statement
@@ -111,6 +117,21 @@ impl AstDumper for StmtNode {
         match self {
             Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name.lexeme, expr.dump()),
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
+
+            Self::FunDecl { name, params, body } => format!(
+                "( fun {} ({}) {} )",
+                name.lexeme,
+                params
+                    .iter()
+                    .map(|token| &token.lexeme as &str)
+                    .collect::<Vec<&str>>()
+                    .join(" "),
+                body.iter()
+                    .map(|stmt| stmt.dump())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+
             Self::Expression(expr) => expr.dump(),
             Self::Print(expr) => format!("(print {})", expr.dump()),
 
