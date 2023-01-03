@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use lazy_static::lazy_static;
 
 use crate::{
-    errors::ErrorType,
+    errors::{SloxError, SloxResult},
     tokens::{Token, TokenType},
     ErrorHandler,
 };
@@ -63,7 +63,9 @@ impl Scanner {
     pub fn scan_tokens(mut self, err_hdl: &mut ErrorHandler) -> Vec<Token> {
         while !self.is_at_end() {
             self.start = self.current;
-            self.scan_token(err_hdl);
+            if let Err(e) = self.scan_token() {
+                err_hdl.report(e);
+            }
         }
         self.tokens.push(Token {
             token_type: TokenType::Eof,
@@ -74,7 +76,7 @@ impl Scanner {
     }
 
     /// Read the next token from the input
-    fn scan_token(&mut self, err_hdl: &mut ErrorHandler) {
+    fn scan_token(&mut self) -> Result<(), SloxError> {
         match self.advance() {
             // Single-character tokens
             '(' => self.add_token(TokenType::LeftParen),
@@ -94,8 +96,9 @@ impl Scanner {
                     while self.peek() != '\n' && !self.is_at_end() {
                         self.current += 1;
                     }
+                    Ok(())
                 } else if self.is_match('*') {
-                    self.block_comment(err_hdl);
+                    self.block_comment()
                 } else {
                     self.add_token(TokenType::Slash)
                 }
@@ -130,25 +133,24 @@ impl Scanner {
                 }
             }
             // String litterals
-            '"' => self.string_litteral(err_hdl),
+            '"' => self.string_litteral(),
             // Handle whitespace
-            ' ' | '\r' | '\t' => (),
-            '\n' => self.line += 1,
+            ' ' | '\r' | '\t' => Ok(()),
+            '\n' => {
+                self.line += 1;
+                Ok(())
+            }
             // Numbers
-            ch if ch.is_ascii_digit() => self.number(err_hdl),
+            ch if ch.is_ascii_digit() => self.number(),
             // Identifiers
             ch if ch.is_ascii_alphabetic() => self.identifier(),
             // Anything else is an error
-            ch => err_hdl.error(
-                ErrorType::Parse,
-                self.line,
-                &format!("unexpected character {:#?}", ch),
-            ),
+            ch => return self.error("unexpected character".to_owned()),
         }
     }
 
     /// Read the rest of a string litteral
-    fn string_litteral(&mut self, err_hdl: &mut ErrorHandler) {
+    fn string_litteral(&mut self) -> SloxResult<()> {
         loop {
             let p = self.peek();
             if p == '"' || self.is_at_end() {
@@ -161,16 +163,17 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            err_hdl.error(ErrorType::Parse, self.line, "unterminated string");
+            self.error("unterminated string".to_owned())
         } else {
             self.current += 1; // Last '"'
             let value = self.get_substring(self.start + 1, self.current - 1);
             self.add_token(TokenType::String(value));
+            Ok(())
         }
     }
 
     /// Read the rest of a number.
-    fn number(&mut self, err_hdl: &mut ErrorHandler) {
+    fn number(&mut self) -> Result<(), SloxError> {
         while self.peek().is_ascii_digit() {
             self.current += 1;
         }
@@ -183,24 +186,19 @@ impl Scanner {
 
         let tok_string = self.get_substring(self.start, self.current);
         match tok_string.parse::<f64>() {
-            Err(e) => {
-                err_hdl.error(
-                    ErrorType::Parse,
-                    self.line,
-                    &format!(
-                        "Could not parse {} as a floating point number: {:?}",
-                        tok_string, e
-                    ),
-                );
-            }
             Ok(value) => {
                 self.add_token(TokenType::Number(value));
+                Ok(())
             }
-        };
+            Err(e) => self.error(format!(
+                "Could not parse {} as a floating point number: {:?}",
+                tok_string, e
+            )),
+        }
     }
 
     /// Read the rest of an identifier or keyword.
-    fn identifier(&mut self) {
+    fn identifier(&mut self) -> Result<(), SloxError> {
         while is_word_char(self.peek()) {
             self.current += 1;
         }
@@ -212,12 +210,11 @@ impl Scanner {
     }
 
     /// Read (and ignore) a block comment. Block comments may be nested.
-    fn block_comment(&mut self, err_hdl: &mut ErrorHandler) {
+    fn block_comment(&mut self) -> Result<(), SloxError> {
         let mut depth = 1;
         loop {
             if self.is_at_end() {
-                err_hdl.error(ErrorType::Parse, self.line, "unterminated block comment");
-                return;
+                return self.error("unterminated block comment".to_owned());
             }
 
             let cur = self.advance();
@@ -226,7 +223,7 @@ impl Scanner {
                 depth -= 1;
                 self.current += 1;
                 if depth == 0 {
-                    return;
+                    return Ok(());
                 }
             } else if cur == '/' && next == '*' {
                 depth += 1;
@@ -287,14 +284,15 @@ impl Scanner {
     }
 
     /// Add a token to the output.
-    fn add_token(&mut self, token_type: TokenType) {
+    fn add_token(&mut self, token_type: TokenType) -> SloxResult<()> {
         let lexeme = self.get_substring(self.start, self.current);
         let token = Token {
             token_type,
             lexeme,
             line: self.line,
         };
-        self.tokens.push(token)
+        self.tokens.push(token);
+        Ok(())
     }
 
     /// Get a substring from the source.
@@ -305,6 +303,19 @@ impl Scanner {
             .skip(start)
             .take(end - start)
             .collect::<String>()
+    }
+
+    /// Generate an error at the current position, with the specified message.
+    fn error(&self, message: String) -> SloxResult<()> {
+        Err(SloxError::scanner_error(
+            self.line,
+            if self.is_at_end() {
+                None
+            } else {
+                Some(self.peek())
+            },
+            message,
+        ))
     }
 }
 
