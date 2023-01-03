@@ -33,6 +33,9 @@ pub struct SloxError {
     message: String,
 }
 
+/// Return type for SLox functions.
+pub type SloxResult<T> = Result<T, SloxError>;
+
 impl SloxError {
     /// Initialize a record for a scanner error.
     pub fn scanner_error(line: usize, ch: Option<char>, message: String) -> Self {
