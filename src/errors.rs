@@ -6,6 +6,8 @@ use crate::tokens::{Token, TokenType};
 /// The type of an error.
 #[derive(Clone, Copy, Debug)]
 pub enum ErrorKind {
+    /// The error occurred while scanning the source code.
+    Scan,
     /// The error occurred while parsing the source code.
     Parse,
     /// The error occurred while trying to run the program.
@@ -15,7 +17,7 @@ pub enum ErrorKind {
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            ErrorKind::Parse => "Parse",
+            ErrorKind::Scan | ErrorKind::Parse => "Parse",
             ErrorKind::Runtime => "Runtime",
         })
     }
@@ -32,8 +34,21 @@ pub struct SloxError {
 }
 
 impl SloxError {
-    /// Initialize an error record.
-    pub fn new(kind: ErrorKind, token: &Token, message: String) -> Self {
+    /// Initialize a record for a scanner error.
+    pub fn scanner_error(line: usize, ch: Option<char>, message: String) -> Self {
+        Self {
+            kind: ErrorKind::Scan,
+            line,
+            pos: match ch {
+                None => "at end of input".to_owned(),
+                Some(ch) => format!("near {:?}", ch)
+            },
+            message,
+        }
+    }
+
+    /// Initialize an error record using a token.
+    pub fn with_token(kind: ErrorKind, token: &Token, message: String) -> Self {
         Self {
             kind,
             line: token.line,
