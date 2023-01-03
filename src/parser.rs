@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     ast,
-    errors::{ErrorHandler, ParserError},
+    errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
 };
 
@@ -62,9 +62,6 @@ impl FunctionKind {
     }
 }
 
-/// The result of one of the parser's functions.
-type ParserResult<T> = Result<T, ParserError>;
-
 impl Parser {
     /// Initialize the parser.
     pub fn new(tokens: Vec<Token>) -> Self {
@@ -120,7 +117,7 @@ impl Parser {
             match self.parse_statement() {
                 Ok(node) => stmts.push(node),
                 Err(err) => {
-                    err.report(err_hdl);
+                    err_hdl.report(err);
                     self.synchronize()
                 }
             }
@@ -146,7 +143,7 @@ impl Parser {
     /// statement := loop_control_statement
     /// statement := return_statement
     /// ```
-    fn parse_statement(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_statement(&mut self) -> SloxResult<ast::StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
             self.parse_var_declaration()
         } else if self.expect(&[TokenType::Fun]).is_some() {
@@ -184,7 +181,7 @@ impl Parser {
     /// ```
     /// expression_stmt := expression ";"
     /// ```
-    fn parse_expression_stmt(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_expression_stmt(&mut self) -> SloxResult<ast::StmtNode> {
         let expression = self.parse_expression()?;
         self.consume(&TokenType::Semicolon, "expected ';' after expression")?;
         Ok(ast::StmtNode::Expression(expression))
@@ -195,10 +192,10 @@ impl Parser {
     /// var_declaration := "var" IDENTIFIER ";"
     /// var_declaration := "var" IDENTIFIER "=" expression ";"
     /// ```
-    fn parse_var_declaration(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_var_declaration(&mut self) -> SloxResult<ast::StmtNode> {
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
-            _ => return Err(ParserError::new(self.peek(), "expected variable name")),
+            _ => return self.error("expected variable name"),
         };
         let initializer: Option<ast::ExprNode> = match self.expect(&[TokenType::Equal]) {
             Some(_) => Some(self.parse_expression()?),
@@ -217,16 +214,11 @@ impl Parser {
     /// function        := IDENTIFIER function_info
     /// ```
     /// The `kind` parameter is used to generate error messages.
-    fn parse_fun_declaration(&mut self, kind: FunctionKind) -> ParserResult<ast::StmtNode> {
+    fn parse_fun_declaration(&mut self, kind: FunctionKind) -> SloxResult<ast::StmtNode> {
         // Read the name
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
-            _ => {
-                return Err(ParserError::new(
-                    self.peek(),
-                    &format!("expected {} name", kind.name()),
-                ))
-            }
+            _ => return self.error_mv(format!("expected {} name", kind.name())),
         };
         let (params, block) = self.parse_function_info(kind)?;
         Ok(ast::StmtNode::FunDecl {
@@ -244,7 +236,7 @@ impl Parser {
     fn parse_function_info(
         &mut self,
         kind: FunctionKind,
-    ) -> ParserResult<(Vec<Token>, Vec<ast::StmtNode>)> {
+    ) -> SloxResult<(Vec<Token>, Vec<ast::StmtNode>)> {
         // Read the list of parameter names
         self.consume(
             &TokenType::LeftParen,
@@ -256,26 +248,20 @@ impl Parser {
             let mut names: HashSet<String> = HashSet::new();
             loop {
                 if params.len() >= kind.max_params() {
-                    return Err(ParserError::new(
-                        self.peek(),
-                        &format!(
-                            "{} can't have more than {} parameters",
-                            kind.name(),
-                            kind.max_params()
-                        ),
+                    return self.error_mv(format!(
+                        "{} can't have more than {} parameters",
+                        kind.name(),
+                        kind.max_params()
                     ));
                 }
                 if let TokenType::Identifier(name) = &self.peek().token_type {
                     if names.contains(name) {
-                        return Err(ParserError::new(
-                            self.peek(),
-                            &format!("duplicate {} parameter", kind.name()),
-                        ));
+                        return self.error_mv(format!("duplicate {} parameter", kind.name()));
                     }
                     names.insert(name.to_owned());
                     params.push(self.advance().clone());
                 } else {
-                    return Err(ParserError::new(self.peek(), "parameter name expected"));
+                    return self.error("parameter name expected");
                 }
                 if self.expect(&[TokenType::Comma]).is_none() {
                     break;
@@ -302,7 +288,7 @@ impl Parser {
     /// ```
     /// block := "{" statement* "}"
     /// ```
-    fn parse_block(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_block(&mut self) -> SloxResult<ast::StmtNode> {
         let mut stmts: Vec<ast::StmtNode> = Vec::new();
         while !(self.check(&TokenType::RightBrace) || self.is_at_end()) {
             stmts.push(self.parse_statement()?);
@@ -316,7 +302,7 @@ impl Parser {
     /// if_statement := "if" "(" expression ")" statement
     /// if_statement := "if" "(" expression ")" statement "else" statement
     /// ```
-    fn parse_if_statement(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_if_statement(&mut self) -> SloxResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'if'")?;
         let expression = self.parse_expression()?;
         self.consume(
@@ -340,15 +326,10 @@ impl Parser {
     /// labelled_loop := "@" IDENTIFIER while_statement
     /// labelled_loop := "@" IDENTIFIER for_statement
     /// ```
-    fn parse_labelled_loop(&mut self) -> ParserResult<ast::StmtNode> {
+    fn parse_labelled_loop(&mut self) -> SloxResult<ast::StmtNode> {
         let name_token = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
-            _ => {
-                return Err(ParserError::new(
-                    self.peek(),
-                    "identifier expected after '@'",
-                ))
-            }
+            _ => return self.error("identifier expected after '@'"),
         };
 
         if self.expect(&[TokenType::While]).is_some() {
@@ -356,10 +337,7 @@ impl Parser {
         } else if self.expect(&[TokenType::For]).is_some() {
             self.parse_for_statement(Some(name_token))
         } else {
-            Err(ParserError::new(
-                self.peek(),
-                "'while' or 'for' expected after loop label",
-            ))
+            self.error("'while' or 'for' expected after loop label")
         }
     }
 
@@ -367,7 +345,7 @@ impl Parser {
     /// ```
     /// while_statement := "while" "(" expression ")" statement
     /// ```
-    fn parse_while_statement(&mut self, label: Option<Token>) -> ParserResult<ast::StmtNode> {
+    fn parse_while_statement(&mut self, label: Option<Token>) -> SloxResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'while'")?;
         let condition = self.parse_expression()?;
         self.consume(
@@ -395,7 +373,7 @@ impl Parser {
     /// for_initializer := expression
     /// for_initializer :=
     /// ```
-    fn parse_for_statement(&mut self, label: Option<Token>) -> ParserResult<ast::StmtNode> {
+    fn parse_for_statement(&mut self, label: Option<Token>) -> SloxResult<ast::StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'for'")?;
 
         let initializer = if self.expect(&[TokenType::Semicolon]).is_some() {
@@ -458,11 +436,12 @@ impl Parser {
     /// loop_control_statement := "break" ( IDENTIFIER )? ";"
     /// loop_control_statement := "continue" ( IDENTIFIER )? ";"
     /// ```
-    fn parse_loop_control_statement(&mut self, stmt_token: &Token) -> ParserResult<ast::StmtNode> {
+    fn parse_loop_control_statement(&mut self, stmt_token: &Token) -> SloxResult<ast::StmtNode> {
         if self.loop_state() == &LoopParsingState::None {
-            return Err(ParserError::new(
+            return Err(SloxError::with_token(
+                ErrorKind::Parse,
                 stmt_token,
-                &format!(
+                format!(
                     "'{}' statement found outside of loop body",
                     stmt_token.lexeme
                 ),
@@ -473,9 +452,10 @@ impl Parser {
             let name_token = self.advance().clone();
             if !self.find_named_loop(&name_token.lexeme) {
                 self.expect(&[TokenType::Semicolon]);
-                return Err(ParserError::new(
+                return Err(SloxError::with_token(
+                    ErrorKind::Parse,
                     &name_token,
-                    &format!("no reachable loop named '{}'", name_token.lexeme),
+                    format!("no reachable loop named '{}'", name_token.lexeme),
                 ));
             }
             Some(name_token)
@@ -497,7 +477,7 @@ impl Parser {
     /// ```
     /// return_statement := "return" expression? ";"
     /// ```
-    fn parse_return_statement(&mut self, ret_token: &Token) -> ParserResult<ast::StmtNode> {
+    fn parse_return_statement(&mut self, ret_token: &Token) -> SloxResult<ast::StmtNode> {
         if self.can_use_return() {
             let value = if self.check(&TokenType::Semicolon) {
                 None
@@ -510,9 +490,10 @@ impl Parser {
                 value,
             })
         } else {
-            Err(ParserError::new(
+            Err(SloxError::with_token(
+                ErrorKind::Parse,
                 ret_token,
-                "'return' found outside of function",
+                "'return' found outside of function".to_owned(),
             ))
         }
     }
@@ -521,7 +502,7 @@ impl Parser {
     /// ```
     /// expression := assignment
     /// ```
-    fn parse_expression(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_expression(&mut self) -> SloxResult<ast::ExprNode> {
         self.parse_assignment()
     }
 
@@ -530,7 +511,7 @@ impl Parser {
     /// assignment := IDENTIFIER "=" equality
     /// assignment := equality
     /// ```
-    fn parse_assignment(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_assignment(&mut self) -> SloxResult<ast::ExprNode> {
         let expr = self.parse_logic_or()?;
         if let Some(equals) = self.expect(&[TokenType::Equal]) {
             let value = self.parse_assignment()?;
@@ -540,7 +521,7 @@ impl Parser {
                     value: Box::new(value),
                 })
             } else {
-                Err(ParserError::new(&equals, "invalid assignment target"))
+                self.error("invalid assignment target")
             }
         } else {
             Ok(expr)
@@ -551,7 +532,7 @@ impl Parser {
     /// ```
     /// logic_or := logic_and ( "or" logic_and )*
     /// ```
-    fn parse_logic_or(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_logic_or(&mut self) -> SloxResult<ast::ExprNode> {
         let mut expr = self.parse_logic_and()?;
         while let Some(operator) = self.expect(&[TokenType::Or]) {
             let right = self.parse_logic_and()?;
@@ -568,7 +549,7 @@ impl Parser {
     /// ```
     /// logic_and := equality ( "and" equality )*
     /// ```
-    fn parse_logic_and(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_logic_and(&mut self) -> SloxResult<ast::ExprNode> {
         let mut expr = self.parse_equality()?;
         while let Some(operator) = self.expect(&[TokenType::And]) {
             let right = self.parse_equality()?;
@@ -586,7 +567,7 @@ impl Parser {
     /// equality := comparison "==" comparison
     /// equality := comparison "!=" comparison
     /// ```
-    fn parse_equality(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_equality(&mut self) -> SloxResult<ast::ExprNode> {
         let mut expr = self.parse_comparison()?;
         while let Some(operator) = self.expect(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let right = self.parse_comparison()?;
@@ -604,7 +585,7 @@ impl Parser {
     /// comparison          := term comparison_operator term
     /// comparison_operator := "<" | "<=" | ">" | ">="
     /// ```
-    fn parse_comparison(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_comparison(&mut self) -> SloxResult<ast::ExprNode> {
         let mut expr = self.parse_term()?;
         while let Some(operator) = self.expect(&[
             TokenType::Greater,
@@ -627,7 +608,7 @@ impl Parser {
     /// term := factor ( "+" factor )*
     /// term := factor ( "-" factor )*
     /// ```
-    fn parse_term(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_term(&mut self) -> SloxResult<ast::ExprNode> {
         let mut expr = self.parse_factor()?;
         while let Some(operator) = self.expect(&[TokenType::Minus, TokenType::Plus]) {
             let right = self.parse_factor()?;
@@ -645,7 +626,7 @@ impl Parser {
     /// factor := unary ( "*" unary )*
     /// factor := unary ( "/" unary )*
     /// ```
-    fn parse_factor(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_factor(&mut self) -> SloxResult<ast::ExprNode> {
         let mut expr = self.parse_unary()?;
         while let Some(operator) = self.expect(&[TokenType::Slash, TokenType::Star]) {
             let right = self.parse_unary()?;
@@ -664,7 +645,7 @@ impl Parser {
     /// unary := "!" unary
     /// unary := primary call_arguments*
     /// ```
-    fn parse_unary(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_unary(&mut self) -> SloxResult<ast::ExprNode> {
         if let Some(operator) = self.expect(&[TokenType::Bang, TokenType::Minus]) {
             Ok(ast::ExprNode::Unary {
                 operator,
@@ -686,7 +667,7 @@ impl Parser {
     /// primary := IDENTIFIER
     /// primary := "fun" function_info
     /// ```
-    fn parse_primary(&mut self) -> ParserResult<ast::ExprNode> {
+    fn parse_primary(&mut self) -> SloxResult<ast::ExprNode> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
             let expr = self.parse_expression()?;
             self.consume(&TokenType::RightParen, "expected ')' after expression")?;
@@ -708,7 +689,7 @@ impl Parser {
                 TokenType::Identifier(_) => Ok(ast::ExprNode::Variable {
                     name: self.advance().clone(),
                 }),
-                _ => Err(ParserError::new(self.peek(), "expected expression")),
+                _ => self.error("expected expression"),
             }
         }
     }
@@ -718,18 +699,12 @@ impl Parser {
     /// call      := expression "(" arguments? ")"
     /// arguments := expression ( "," expression )*
     /// ```
-    fn parse_call_arguments(
-        &mut self,
-        callee: ast::ExprNode,
-    ) -> Result<ast::ExprNode, ParserError> {
+    fn parse_call_arguments(&mut self, callee: ast::ExprNode) -> Result<ast::ExprNode, SloxError> {
         let mut arguments = Vec::new();
         if !self.check(&TokenType::RightParen) {
             loop {
                 if arguments.len() == 255 {
-                    return Err(ParserError::new(
-                        self.peek(),
-                        "functions may not have more than 255 arguments",
-                    ));
+                    return self.error("functions may not have more than 255 arguments");
                 }
                 arguments.push(self.parse_expression()?);
                 if self.expect(&[TokenType::Comma]).is_none() {
@@ -764,11 +739,11 @@ impl Parser {
 
     /// Consume a token of a given type. If no matching token is found, a
     /// parse error is returned instead. Otherwise the read pointer is moved.
-    fn consume(&mut self, token_type: &TokenType, error: &str) -> ParserResult<&Token> {
+    fn consume(&mut self, token_type: &TokenType, error: &str) -> SloxResult<&Token> {
         if self.check(token_type) {
             Ok(self.advance())
         } else {
-            Err(ParserError::new(self.peek(), error))
+            self.error(error)
         }
     }
 
@@ -840,5 +815,19 @@ impl Parser {
             }
             pos -= 1;
         }
+    }
+
+    /// Generate an error at the current token.
+    fn error<O>(&self, message: &str) -> SloxResult<O> {
+        self.error_mv(message.to_owned())
+    }
+
+    /// Generate an error at the current token.
+    fn error_mv<O>(&self, message: String) -> SloxResult<O> {
+        Err(SloxError::with_token(
+            ErrorKind::Parse,
+            self.peek(),
+            message,
+        ))
     }
 }
