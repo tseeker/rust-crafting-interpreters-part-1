@@ -73,7 +73,7 @@ impl ErrorHandler {
     }
 
     /// Report an error.
-    pub fn report(&mut self, error: &SloxError) {
+    pub fn report(&mut self, error: SloxError) {
         if self.had_error.is_none() {
             self.had_error = Some(error.kind);
         }
