@@ -2,10 +2,12 @@ use std::collections::HashMap;
 
 use crate::{ast, errors::ParserError, tokens::Token};
 
-pub fn resolve_variables(program: &ast::ProgramNode) -> ResolverResult {
+pub type ResolvedVariables = HashMap<*const ast::ExprNode, usize>;
+
+pub fn resolve_variables(program: &ast::ProgramNode) -> Result<ResolvedVariables, ParserError> {
     let mut state = ResolverState::default();
     program.resolve(&mut state)?;
-    Ok(())
+    Ok(state.resolved)
 }
 
 type ResolverResult = Result<(), ParserError>;
@@ -13,7 +15,7 @@ type ResolverResult = Result<(), ParserError>;
 #[derive(Default)]
 struct ResolverState {
     scopes: Vec<HashMap<String, bool>>,
-    resolved: HashMap<*const ast::ExprNode, usize>,
+    resolved: ResolvedVariables,
 }
 
 impl ResolverState {
