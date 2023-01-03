@@ -1,16 +1,19 @@
 use std::collections::HashMap;
 
-use crate::{ast, errors::ParserError, tokens::Token};
+use crate::{
+    ast,
+    errors::{ErrorKind, SloxError, SloxResult},
+    tokens::Token,
+};
 
 pub type ResolvedVariables = HashMap<*const ast::ExprNode, usize>;
 
-pub fn resolve_variables(program: &ast::ProgramNode) -> Result<ResolvedVariables, ParserError> {
+pub fn resolve_variables(program: &ast::ProgramNode) -> Result<ResolvedVariables, SloxError> {
     let mut state = ResolverState::default();
-    program.resolve(&mut state)?;
-    Ok(state.resolved)
+    program.resolve(&mut state).map(|_| state.resolved)
 }
 
-type ResolverResult = Result<(), ParserError>;
+type ResolverResult = SloxResult<()>;
 
 #[derive(Default)]
 struct ResolverState {
@@ -185,9 +188,10 @@ impl VarResolver for ast::ExprNode {
         match self {
             ast::ExprNode::Variable { name } => {
                 if rs.check(&name.lexeme) == Some(false) {
-                    Err(ParserError::new(
+                    Err(SloxError::with_token(
+                        ErrorKind::Parse,
                         name,
-                        "can't read local variable in its own initializer",
+                        "can't read local variable in its own initializer".to_owned(),
                     ))
                 } else {
                     rs.resolve_local(self, name);
