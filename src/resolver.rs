@@ -68,7 +68,11 @@ impl ResolverState {
             self.declare(param);
             self.define(param);
         }
+        // Unlike the original Lox, function arguments and function bodies do
+        // not use the same environment.
+        self.begin_scope();
         let result = body.resolve(self);
+        self.end_scope();
         self.end_scope();
         result
     }
