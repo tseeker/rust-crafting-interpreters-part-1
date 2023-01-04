@@ -145,7 +145,7 @@ impl Scanner {
             // Identifiers
             ch if ch.is_ascii_alphabetic() => self.identifier(),
             // Anything else is an error
-            ch => return self.error("unexpected character".to_owned()),
+            _ => return self.error("unexpected character".to_owned()),
         }
     }
 
@@ -167,8 +167,7 @@ impl Scanner {
         } else {
             self.current += 1; // Last '"'
             let value = self.get_substring(self.start + 1, self.current - 1);
-            self.add_token(TokenType::String(value));
-            Ok(())
+            self.add_token(TokenType::String(value))
         }
     }
 
@@ -187,8 +186,7 @@ impl Scanner {
         let tok_string = self.get_substring(self.start, self.current);
         match tok_string.parse::<f64>() {
             Ok(value) => {
-                self.add_token(TokenType::Number(value));
-                Ok(())
+                self.add_token(TokenType::Number(value))
             }
             Err(e) => self.error(format!(
                 "Could not parse {} as a floating point number: {:?}",

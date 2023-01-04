@@ -114,11 +114,6 @@ pub struct ErrorHandler {
 }
 
 impl ErrorHandler {
-    /// Check whether this handler reported an error.
-    pub fn had_error(&self) -> Option<ErrorKind> {
-        self.had_error
-    }
-
     /// Report an error.
     pub fn report(&mut self, error: SloxError) {
         self.had_error = Some(error.kind);
@@ -131,8 +126,8 @@ impl ErrorHandler {
         match result {
             Ok(v) => Ok(v),
             Err(e) => {
-                self.report(e);
                 let fe = SloxError::stage_failed(e.kind);
+                self.report(e);
                 println!("{fe}");
                 Err(fe)
             }

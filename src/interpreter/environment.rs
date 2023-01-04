@@ -1,6 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::{errors::InterpreterError, tokens::Token};
+use crate::{
+    errors::{ErrorKind, SloxError, SloxResult},
+    tokens::Token,
+};
 
 use super::{native_fn, CallableRef, Value};
 
@@ -45,11 +48,12 @@ impl Environment {
     }
 
     /// Define a new variable.
-    pub fn define(&mut self, name: &Token, value: Variable) -> Result<(), InterpreterError> {
+    pub fn define(&mut self, name: &Token, value: Variable) -> SloxResult<()> {
         if self.values.contains_key(&name.lexeme as &str) {
-            Err(InterpreterError::new(
+            Err(SloxError::with_token(
+                ErrorKind::Runtime,
                 name,
-                &format!("variable '{}' already defined in scope", name.lexeme),
+                format!("variable '{}' already defined in scope", name.lexeme),
             ))
         } else {
             self.values.insert(name.lexeme.clone(), value);
@@ -58,33 +62,36 @@ impl Environment {
     }
 
     /// Get the value of a variable.
-    pub fn get(&self, name: &Token) -> Result<Value, InterpreterError> {
+    pub fn get(&self, name: &Token) -> SloxResult<Value> {
         match self.values.get(&name.lexeme as &str) {
             None => match &self.enclosing {
-                None => Err(InterpreterError::new(
+                None => Err(SloxError::with_token(
+                    ErrorKind::Runtime,
                     name,
-                    &format!("undefined variable '{}'", name.lexeme),
+                    format!("undefined variable '{}'", name.lexeme),
                 )),
                 Some(parent) => parent.borrow().get(name),
             },
-            Some(None) => Err(InterpreterError::new(
+            Some(None) => Err(SloxError::with_token(
+                ErrorKind::Runtime,
                 name,
-                &format!("variable '{}' has not been initialized", name.lexeme),
+                format!("variable '{}' has not been initialized", name.lexeme),
             )),
             Some(Some(value)) => Ok(value.clone()),
         }
     }
 
     /// Assign a value to an existing variable.
-    pub fn assign(&mut self, name: &Token, value: Value) -> Result<(), InterpreterError> {
+    pub fn assign(&mut self, name: &Token, value: Value) -> SloxResult<()> {
         if self.values.contains_key(&name.lexeme as &str) {
             self.values.insert(name.lexeme.clone(), Some(value));
             Ok(())
         } else {
             match &mut self.enclosing {
-                None => Err(InterpreterError::new(
+                None => Err(SloxError::with_token(
+                    ErrorKind::Runtime,
                     name,
-                    &format!("undefined variable '{}'", name.lexeme),
+                    format!("undefined variable '{}'", name.lexeme),
                 )),
                 Some(parent) => parent.borrow_mut().assign(name, value),
             }

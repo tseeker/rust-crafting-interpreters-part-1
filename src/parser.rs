@@ -517,7 +517,11 @@ impl Parser {
                     value: Box::new(value),
                 })
             } else {
-                self.error("invalid assignment target")
+                Err(SloxError::with_token(
+                    ErrorKind::Parse,
+                    &equals,
+                    "invalid assignment target".to_owned(),
+                ))
             }
         } else {
             Ok(expr)

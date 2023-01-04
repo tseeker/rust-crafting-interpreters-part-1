@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::errors::InterpreterError;
+use crate::errors::SloxResult;
 
 use super::{Callable, CallableRef, EnvironmentRef, Value};
 
@@ -20,11 +20,7 @@ impl Callable for Clock {
         0
     }
 
-    fn call(
-        &self,
-        _environment: &EnvironmentRef,
-        _arguments: Vec<Value>,
-    ) -> Result<Value, InterpreterError> {
+    fn call(&self, _environment: &EnvironmentRef, _arguments: Vec<Value>) -> SloxResult<Value> {
         let now = SystemTime::now();
         let since_epoch = now
             .duration_since(UNIX_EPOCH)

@@ -4,7 +4,7 @@ use itertools::izip;
 
 use crate::{
     ast,
-    errors::InterpreterError,
+    errors::SloxResult,
     interpreter::{Environment, Interpretable, InterpreterFlowControl},
     tokens::Token,
 };
@@ -39,11 +39,7 @@ impl Callable for Function {
         self.params.len()
     }
 
-    fn call(
-        &self,
-        environment: &EnvironmentRef,
-        arguments: Vec<Value>,
-    ) -> Result<Value, InterpreterError> {
+    fn call(&self, environment: &EnvironmentRef, arguments: Vec<Value>) -> SloxResult<Value> {
         assert_eq!(arguments.len(), self.arity());
         let param_env = Environment::create_child(environment);
         for (arg, value) in izip!(self.params.iter(), arguments.into_iter()) {

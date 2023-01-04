@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
-use crate::errors::InterpreterError;
+use crate::errors::SloxResult;
 
 use super::{EnvironmentRef, Value};
 
@@ -11,11 +11,7 @@ pub trait Callable: Debug + ToString {
 
     /// Run the callable in the execution environment with the specified
     /// arguments.
-    fn call(
-        &self,
-        environment: &EnvironmentRef,
-        arguments: Vec<Value>,
-    ) -> Result<Value, InterpreterError>;
+    fn call(&self, environment: &EnvironmentRef, arguments: Vec<Value>) -> SloxResult<Value>;
 }
 
 /// A reference to a callable.
