@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use super::Callable;
 
@@ -20,6 +20,18 @@ impl PartialEq for Value {
             (Self::String(a), Self::String(b)) => a == b,
             (Self::Number(a), Self::Number(b)) => a == b,
             _ => false,
+        }
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Nil => f.write_str("nil"),
+            Value::Boolean(b) => b.fmt(f),
+            Value::String(s) => s.fmt(f),
+            Value::Number(n) => n.fmt(f),
+            Value::Callable(c) => f.write_str(&c.borrow().to_string()),
         }
     }
 }

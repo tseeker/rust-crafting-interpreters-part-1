@@ -2,28 +2,16 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     ast,
-    errors::{ErrorHandler, SloxError},
-    interpreter::{Environment, EnvironmentRef, Value},
+    errors::{ErrorKind, SloxError, SloxResult},
+    interpreter::{functions::Function, Environment, EnvironmentRef, Value},
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
 };
 
-use super::functions::Function;
-
 /// Evaluate an interpretable, returning its value.
-pub fn evaluate(
-    err_hdl: &mut ErrorHandler,
-    ast: &dyn Interpretable,
-    vars: ResolvedVariables,
-) -> Result<Value, SloxError> {
+pub fn evaluate(ast: &dyn Interpretable, vars: ResolvedVariables) -> SloxResult<Value> {
     let env = Rc::new(RefCell::new(Environment::default()));
-    match ast.interpret(&env) {
-        Ok(v) => Ok(v.result()),
-        Err(e) => {
-            err_hdl.report(e);
-            Err(e)
-        }
-    }
+    ast.interpret(&env).map(|v| v.result())
 }
 
 /* ------- *
@@ -43,7 +31,7 @@ pub enum InterpreterFlowControl {
 impl InterpreterFlowControl {
     /// Return the result's value. If the flow control value does not represent
     /// a result, panic.
-    pub(crate) fn result(self) -> Value {
+    pub fn result(self) -> Value {
         match self {
             Self::Result(v) => v,
             other => panic!("Result expected, {:?} found instead", other),
@@ -52,7 +40,7 @@ impl InterpreterFlowControl {
 
     /// Check whether a flow control value contains actual flow control
     /// information.
-    pub(crate) fn is_flow_control(&self) -> bool {
+    pub fn is_flow_control(&self) -> bool {
         matches!(self, Self::Break(_) | Self::Continue(_) | Self::Return(_))
     }
 }
@@ -70,11 +58,20 @@ impl From<Value> for InterpreterFlowControl {
 }
 
 /// A result returned by some part of the interpreter.
-pub type InterpreterResult = Result<InterpreterFlowControl, SloxError>;
+pub type InterpreterResult = SloxResult<InterpreterFlowControl>;
 
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
     fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult;
+}
+
+/// Generate an error with a static message.
+fn error<T>(token: &Token, message: &str) -> SloxResult<T> {
+    Err(SloxError::with_token(
+        ErrorKind::Runtime,
+        token,
+        message.to_owned(),
+    ))
 }
 
 /* ----------------------------- *
@@ -331,12 +328,12 @@ impl ast::ExprNode {
             TokenType::Plus => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b).into()),
                 (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b).into()),
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::Minus => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b).into()),
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::Star => match (left_value, right_value) {
@@ -344,38 +341,38 @@ impl ast::ExprNode {
                 (Value::String(a), Value::Number(b)) => {
                     Ok(Value::String(a.repeat(b as usize)).into())
                 }
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::Slash => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => {
                     if b == 0. {
-                        Err(SloxError::new(operator, "division by zero"))
+                        error(operator, "division by zero")
                     } else {
                         Ok(Value::Number(a / b).into())
                     }
                 }
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::Greater => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a > b).into()),
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::GreaterEqual => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a >= b).into()),
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::Less => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a < b).into()),
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::LessEqual => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a <= b).into()),
-                _ => Err(SloxError::new(operator, "type error")),
+                _ => error(operator, "type error"),
             },
 
             TokenType::EqualEqual => Ok(Value::Boolean(left_value == right_value).into()),
@@ -401,7 +398,7 @@ impl ast::ExprNode {
                 if let Value::Number(n) = right_value {
                     Ok(Value::Number(-n).into())
                 } else {
-                    Err(SloxError::new(operator, "number expected"))
+                    error(operator, "number expected")
                 }
             }
 
@@ -446,9 +443,10 @@ impl ast::ExprNode {
         if let Value::Callable(callable_ref) = &callee {
             let callable = callable_ref.borrow();
             if callable.arity() != arg_values.len() {
-                Err(SloxError::new(
+                Err(SloxError::with_token(
+                    ErrorKind::Runtime,
                     right_paren,
-                    &format!(
+                    format!(
                         "expected {} arguments, found {}",
                         arg_values.len(),
                         callable.arity()
@@ -458,10 +456,7 @@ impl ast::ExprNode {
                 Ok(callable.call(environment, arg_values)?.into())
             }
         } else {
-            Err(SloxError::new(
-                right_paren,
-                "can only call functions and classes",
-            ))
+            error(right_paren, "can only call functions and classes")
         }
     }
 }

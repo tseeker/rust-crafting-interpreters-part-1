@@ -15,7 +15,7 @@ use std::{
 #[cfg(feature = "dump_ast")]
 use ast::AstDumper;
 use errors::{ErrorHandler, SloxResult};
-use interpreter::evaluate;
+use interpreter::{evaluate, Value};
 use parser::Parser;
 use resolver::resolve_variables;
 use scanner::Scanner;
@@ -36,9 +36,12 @@ fn run(source: String) -> SloxResult<()> {
     #[cfg(feature = "dump_ast")]
     println!("AST generated ! {}", ast.dump());
 
-    let resolved_vars = error_handler.final_error(resolve_variables(&ast))?;
-    error_handler.final_error(evaluate(&ast, resolved_vars));
-
+    let resolved_vars = error_handler.report_or_continue(resolve_variables(&ast))?;
+    let value = error_handler.report_or_continue(evaluate(&ast, resolved_vars))?;
+    match value {
+        Value::Nil => (),
+        _ => println!("{value}"),
+    }
     Ok(())
 }
 
