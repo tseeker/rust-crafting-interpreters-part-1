@@ -74,11 +74,11 @@ impl Parser {
 
     /// Parse the tokens into an AST and return it, or return nothing if a
     /// parser error occurs.
-    pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ProgramNode> {
+    pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> SloxResult<ast::ProgramNode> {
         self.loop_state.push(LoopParsingState::None);
         let result = self.parse_program(err_hdl);
         self.loop_state.pop();
-        result
+        err_hdl.final_error(result)
     }
 
     /// Synchronize the parser after an error.
@@ -111,7 +111,7 @@ impl Parser {
     /// ```
     /// program := statement*
     /// ```
-    fn parse_program(&mut self, err_hdl: &mut ErrorHandler) -> Option<ast::ProgramNode> {
+    fn parse_program(&mut self, err_hdl: &mut ErrorHandler) -> ast::ProgramNode {
         let mut stmts: Vec<ast::StmtNode> = Vec::new();
         while !self.is_at_end() {
             match self.parse_statement() {
@@ -122,11 +122,7 @@ impl Parser {
                 }
             }
         }
-        if err_hdl.had_error().is_none() {
-            Some(ast::ProgramNode(stmts))
-        } else {
-            None
-        }
+        ast::ProgramNode(stmts)
     }
 
     /// Parse the following rule:

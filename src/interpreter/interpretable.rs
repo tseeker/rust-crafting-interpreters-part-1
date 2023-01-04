@@ -2,21 +2,26 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     ast,
-    errors::{ErrorHandler, InterpreterError},
+    errors::{ErrorHandler, SloxError},
     interpreter::{Environment, EnvironmentRef, Value},
+    resolver::ResolvedVariables,
     tokens::{Token, TokenType},
 };
 
 use super::functions::Function;
 
 /// Evaluate an interpretable, returning its value.
-pub fn evaluate(err_hdl: &mut ErrorHandler, ast: &dyn Interpretable) -> Option<Value> {
+pub fn evaluate(
+    err_hdl: &mut ErrorHandler,
+    ast: &dyn Interpretable,
+    vars: ResolvedVariables,
+) -> Result<Value, SloxError> {
     let env = Rc::new(RefCell::new(Environment::default()));
     match ast.interpret(&env) {
-        Ok(v) => Some(v.result()),
+        Ok(v) => Ok(v.result()),
         Err(e) => {
-            e.report(err_hdl);
-            None
+            err_hdl.report(e);
+            Err(e)
         }
     }
 }
@@ -65,7 +70,7 @@ impl From<Value> for InterpreterFlowControl {
 }
 
 /// A result returned by some part of the interpreter.
-pub type InterpreterResult = Result<InterpreterFlowControl, InterpreterError>;
+pub type InterpreterResult = Result<InterpreterFlowControl, SloxError>;
 
 /// An Interpretable can be evaluated and will return a value.
 pub trait Interpretable {
@@ -326,12 +331,12 @@ impl ast::ExprNode {
             TokenType::Plus => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b).into()),
                 (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b).into()),
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::Minus => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a - b).into()),
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::Star => match (left_value, right_value) {
@@ -339,38 +344,38 @@ impl ast::ExprNode {
                 (Value::String(a), Value::Number(b)) => {
                     Ok(Value::String(a.repeat(b as usize)).into())
                 }
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::Slash => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => {
                     if b == 0. {
-                        Err(InterpreterError::new(operator, "division by zero"))
+                        Err(SloxError::new(operator, "division by zero"))
                     } else {
                         Ok(Value::Number(a / b).into())
                     }
                 }
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::Greater => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a > b).into()),
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::GreaterEqual => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a >= b).into()),
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::Less => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a < b).into()),
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::LessEqual => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Boolean(a <= b).into()),
-                _ => Err(InterpreterError::new(operator, "type error")),
+                _ => Err(SloxError::new(operator, "type error")),
             },
 
             TokenType::EqualEqual => Ok(Value::Boolean(left_value == right_value).into()),
@@ -396,7 +401,7 @@ impl ast::ExprNode {
                 if let Value::Number(n) = right_value {
                     Ok(Value::Number(-n).into())
                 } else {
-                    Err(InterpreterError::new(operator, "number expected"))
+                    Err(SloxError::new(operator, "number expected"))
                 }
             }
 
@@ -441,7 +446,7 @@ impl ast::ExprNode {
         if let Value::Callable(callable_ref) = &callee {
             let callable = callable_ref.borrow();
             if callable.arity() != arg_values.len() {
-                Err(InterpreterError::new(
+                Err(SloxError::new(
                     right_paren,
                     &format!(
                         "expected {} arguments, found {}",
@@ -453,7 +458,7 @@ impl ast::ExprNode {
                 Ok(callable.call(environment, arg_values)?.into())
             }
         } else {
-            Err(InterpreterError::new(
+            Err(SloxError::new(
                 right_paren,
                 "can only call functions and classes",
             ))

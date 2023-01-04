@@ -60,7 +60,7 @@ impl Scanner {
 
     /// Scan the source code, generating the list of tokens and returning it.
     /// The scanner itself is destroyed once the process is complete.
-    pub fn scan_tokens(mut self, err_hdl: &mut ErrorHandler) -> Vec<Token> {
+    pub fn scan_tokens(mut self, err_hdl: &mut ErrorHandler) -> SloxResult<Vec<Token>> {
         while !self.is_at_end() {
             self.start = self.current;
             if let Err(e) = self.scan_token() {
@@ -72,7 +72,7 @@ impl Scanner {
             lexeme: String::from(""),
             line: self.line,
         });
-        self.tokens
+        err_hdl.final_error(self.tokens)
     }
 
     /// Read the next token from the input

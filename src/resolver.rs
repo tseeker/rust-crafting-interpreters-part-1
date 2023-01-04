@@ -8,7 +8,7 @@ use crate::{
 
 pub type ResolvedVariables = HashMap<*const ast::ExprNode, usize>;
 
-pub fn resolve_variables(program: &ast::ProgramNode) -> Result<ResolvedVariables, SloxError> {
+pub fn resolve_variables(program: &ast::ProgramNode) -> SloxResult<ResolvedVariables> {
     let mut state = ResolverState::default();
     program.resolve(&mut state).map(|_| state.resolved)
 }

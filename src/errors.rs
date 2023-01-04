@@ -38,7 +38,7 @@ impl fmt::Display for ErrorKind {
 #[derive(Debug, Clone)]
 pub struct SloxError {
     kind: ErrorKind,
-    line: usize,
+    line: Option<usize>,
     pos: String,
     message: String,
 }
@@ -51,10 +51,10 @@ impl SloxError {
     pub fn scanner_error(line: usize, ch: Option<char>, message: String) -> Self {
         Self {
             kind: ErrorKind::Scan,
-            line,
+            line: Some(line),
             pos: match ch {
-                None => "at end of input".to_owned(),
-                Some(ch) => format!("near {:?}", ch)
+                None => " at end of input".to_owned(),
+                Some(ch) => format!(" near {:?}", ch),
             },
             message,
         }
@@ -64,14 +64,29 @@ impl SloxError {
     pub fn with_token(kind: ErrorKind, token: &Token, message: String) -> Self {
         Self {
             kind,
-            line: token.line,
+            line: Some(token.line),
             pos: if token.token_type == TokenType::Eof {
-                "at end of input".to_owned()
+                " at end of input".to_owned()
             } else {
-                format!("near '{}'", token.lexeme)
+                format!(" near '{}'", token.lexeme)
             },
             message,
         }
+    }
+
+    /// Create an error indicating a stage failed.
+    fn stage_failed(kind: ErrorKind) -> Self {
+        Self {
+            kind,
+            line: None,
+            pos: "".to_owned(),
+            message: "exiting...".to_owned(),
+        }
+    }
+
+    /// Return the type of error
+    pub fn kind(&self) -> &ErrorKind {
+        &self.kind
     }
 }
 
@@ -79,10 +94,14 @@ impl Error for SloxError {}
 
 impl Display for SloxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let line = match self.line {
+            None => "".to_owned(),
+            Some(l) => format!("[line {}] ", l),
+        };
         write!(
             f,
-            "[line {}] {} error {}: {}",
-            self.line, self.kind, self.pos, self.message
+            "{}{} error{}: {}",
+            line, self.kind, self.pos, self.message
         )
     }
 }
@@ -102,9 +121,32 @@ impl ErrorHandler {
 
     /// Report an error.
     pub fn report(&mut self, error: SloxError) {
-        if self.had_error.is_none() {
-            self.had_error = Some(error.kind);
-        }
+        self.had_error = Some(error.kind);
         println!("{error}");
+    }
+
+    /// Transmit the last value returned by some component, or report its error
+    /// and generate the final error.
+    pub fn report_or_continue<T>(&mut self, result: SloxResult<T>) -> SloxResult<T> {
+        match result {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                self.report(e);
+                let fe = SloxError::stage_failed(e.kind);
+                println!("{fe}");
+                Err(fe)
+            }
+        }
+    }
+
+    /// Generate an error that corresponds to the last error encountered.
+    pub fn final_error<T>(&self, result: T) -> SloxResult<T> {
+        if let Some(err_kind) = self.had_error {
+            let err = SloxError::stage_failed(err_kind);
+            println!("{err}");
+            Err(err)
+        } else {
+            Ok(result)
+        }
     }
 }
