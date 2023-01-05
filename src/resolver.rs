@@ -6,8 +6,12 @@ use crate::{
     tokens::Token,
 };
 
+/// Resolved variables. Pointers to the AST nodes using the variables are
+/// associated with the relative depth at which the variable definition will be
+/// found.
 pub type ResolvedVariables = HashMap<*const ast::ExprNode, usize>;
 
+/// Resolve all variables in a program's AST.
 pub fn resolve_variables(program: &ast::ProgramNode) -> SloxResult<ResolvedVariables> {
     let mut state = ResolverState::default();
     program.resolve(&mut state).map(|_| state.resolved)
@@ -15,21 +19,29 @@ pub fn resolve_variables(program: &ast::ProgramNode) -> SloxResult<ResolvedVaria
 
 type ResolverResult = SloxResult<()>;
 
+/// The state of the resolver.
 #[derive(Default)]
 struct ResolverState {
+    /// The stack of scopes. Each scope maps variable names to a flag that
+    /// indicates whether the variable has been defined or not.
     scopes: Vec<HashMap<String, bool>>,
+    /// The result of the resolver pass.
     resolved: ResolvedVariables,
 }
 
 impl ResolverState {
+    /// Enter a new scope.
     fn begin_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
 
+    /// End the current scope.
     fn end_scope(&mut self) {
         self.scopes.pop();
     }
 
+    /// Try to declare a variable. If the scope already contains a variable
+    /// declaration for the same name, return an error.
     fn declare(&mut self, name: &Token) -> ResolverResult {
         if !self.scopes.is_empty() {
             let idx = self.scopes.len() - 1;
@@ -47,6 +59,7 @@ impl ResolverState {
         return Ok(());
     }
 
+    /// Define a new variable.
     fn define(&mut self, name: &Token) {
         if !self.scopes.is_empty() {
             let idx = self.scopes.len() - 1;
@@ -55,6 +68,7 @@ impl ResolverState {
         }
     }
 
+    /// Check for a variable in the current scope, if there is one.
     fn check(&self, name: &str) -> Option<bool> {
         if self.scopes.is_empty() {
             None
@@ -64,6 +78,8 @@ impl ResolverState {
         }
     }
 
+    /// Try to resolve some access to a variable. If a local variable is found
+    /// matching the specified name, add it to the resolution map.
     fn resolve_local(&mut self, expr: &ast::ExprNode, name: &Token) {
         let mut i = self.scopes.len();
         while i != 0 {
@@ -75,6 +91,7 @@ impl ResolverState {
         }
     }
 
+    /// Add an entry to the resolution map for an AST node.
     fn mark_resolved(&mut self, expr: &ast::ExprNode, depth: usize) {
         self.resolved.insert(expr as *const ast::ExprNode, depth);
     }
@@ -96,7 +113,9 @@ fn resolve_function(rs: &mut ResolverState, params: &[Token], body: &Vec<ast::St
     result
 }
 
+/// Helper trait used to visit the various AST nodes with the resolver.
 trait VarResolver {
+    /// Try to resolve local variables under some AST node.
     fn resolve(&self, rs: &mut ResolverState) -> ResolverResult;
 }
 
