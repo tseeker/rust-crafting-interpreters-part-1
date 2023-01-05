@@ -8,15 +8,15 @@ use crate::{
 use super::{native_fn, CallableRef, Value};
 
 /// A mutable reference to an environment.
-pub type EnvironmentRef = Rc<RefCell<Environment>>;
+pub(super) type EnvironmentRef = Rc<RefCell<Environment>>;
 
 /// A variable.
-pub type Variable = Option<Value>;
+pub(super) type Variable = Option<Value>;
 
 /// The execution environment.
 #[derive(Debug)]
-pub struct Environment {
-    enclosing: Option<EnvironmentRef>,
+pub(super) struct Environment {
+    pub(super) enclosing: Option<EnvironmentRef>,
     values: HashMap<String, Variable>,
 }
 

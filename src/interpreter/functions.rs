@@ -2,14 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use itertools::izip;
 
-use crate::{
-    ast,
-    errors::SloxResult,
-    interpreter::{Environment, Interpretable, InterpreterFlowControl},
-    tokens::Token,
+use super::{
+    Callable, Environment, Interpretable, InterpreterFlowControl, InterpreterState, Value,
 };
-
-use super::{Callable, EnvironmentRef, Value};
+use crate::{ast, errors::SloxResult, tokens::Token};
 
 /// A function implemented in the Lox-ish language.
 #[derive(Debug)]
@@ -39,16 +35,28 @@ impl Callable for Function {
         self.params.len()
     }
 
-    fn call(&self, environment: &EnvironmentRef, arguments: Vec<Value>) -> SloxResult<Value> {
+    fn call(&self, es: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value> {
         assert_eq!(arguments.len(), self.arity());
-        let param_env = Environment::create_child(environment);
+        let param_env = InterpreterState {
+            environment: Environment::create_child(&es.environment),
+            globals: es.globals.clone(),
+            variables: es.variables,
+        };
         for (arg, value) in izip!(self.params.iter(), arguments.into_iter()) {
-            param_env.borrow_mut().define(arg, Some(value)).unwrap();
+            param_env
+                .environment
+                .borrow_mut()
+                .define(arg, Some(value))
+                .unwrap();
         }
 
-        let child = Environment::create_child(&param_env);
+        let mut child = InterpreterState {
+            environment: Environment::create_child(&param_env.environment),
+            globals: es.globals.clone(),
+            variables: es.variables,
+        };
         for stmt in self.body.iter() {
-            let result = stmt.interpret(&child)?;
+            let result = stmt.interpret(&mut child)?;
             match result {
                 InterpreterFlowControl::Result(_) => (),
                 InterpreterFlowControl::Return(v) => return Ok(v),

@@ -11,12 +11,25 @@ use crate::{
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(ast: &ast::ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
     let env = Rc::new(RefCell::new(Environment::default()));
-    ast.interpret(&env).map(|v| v.result())
+    let mut state = InterpreterState{
+        environment: env.clone(),
+        globals: env,
+        variables: &vars,
+    };
+    ast.interpret(&mut state).map(|v| v.result())
 }
 
 /* ------- *
  * HELPERS *
  * ------- */
+
+/// The state of the interpreter.
+#[derive(Debug)]
+pub(super) struct InterpreterState<'a> {
+    pub(super) globals: EnvironmentRef,
+    pub(super) environment: EnvironmentRef,
+    pub(super) variables: &'a ResolvedVariables,
+}
 
 /// Interpreter flow control, which may be either a value, a loop break or a
 /// loop continuation.
@@ -62,7 +75,7 @@ pub(super) type InterpreterResult = SloxResult<InterpreterFlowControl>;
 
 /// An Interpretable can be evaluated and will return a value.
 pub(super) trait Interpretable {
-    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult;
+    fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult;
 }
 
 /// Generate an error with a static message.
@@ -79,9 +92,9 @@ fn error<T>(token: &Token, message: &str) -> SloxResult<T> {
  * ----------------------------- */
 
 impl Interpretable for ast::ProgramNode {
-    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult {
+    fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
         for stmt in self.0.iter() {
-            stmt.interpret(environment)?;
+            stmt.interpret(es)?;
         }
         Ok(InterpreterFlowControl::default())
     }
@@ -92,32 +105,32 @@ impl Interpretable for ast::ProgramNode {
  * ------------------------------- */
 
 impl Interpretable for ast::StmtNode {
-    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult {
+    fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
         match self {
-            ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(environment, name, expr),
+            ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(es, name, expr),
             ast::StmtNode::FunDecl { name, params, body } => {
-                self.on_fun_decl(environment, name, params, body)
+                self.on_fun_decl(es, name, params, body)
             }
-            ast::StmtNode::Expression(expr) => expr.interpret(environment),
-            ast::StmtNode::Print(expr) => self.on_print(environment, expr),
-            ast::StmtNode::Block(statements) => self.on_block(environment, statements),
+            ast::StmtNode::Expression(expr) => expr.interpret(es),
+            ast::StmtNode::Print(expr) => self.on_print(es, expr),
+            ast::StmtNode::Block(statements) => self.on_block(es, statements),
             ast::StmtNode::If {
                 condition,
                 then_branch,
                 else_branch,
-            } => self.on_if_statement(environment, condition, then_branch, else_branch),
+            } => self.on_if_statement(es, condition, then_branch, else_branch),
             ast::StmtNode::Loop {
                 label,
                 condition,
                 body,
                 after_body,
-            } => self.on_loop_statement(environment, label, condition, body, after_body),
+            } => self.on_loop_statement(es, label, condition, body, after_body),
             ast::StmtNode::LoopControl {
                 is_break,
                 loop_name,
             } => self.on_loop_control_statemement(*is_break, loop_name),
             ast::StmtNode::Return { token: _, value } => {
-                self.on_return_statement(environment, value)
+                self.on_return_statement(es, value)
             }
         }
     }
@@ -125,8 +138,8 @@ impl Interpretable for ast::StmtNode {
 
 impl ast::StmtNode {
     /// Handle the `print` statement.
-    fn on_print(&self, environment: &EnvironmentRef, expr: &ast::ExprNode) -> InterpreterResult {
-        let value = expr.interpret(environment)?.result();
+    fn on_print(&self, es: &mut InterpreterState, expr: &ast::ExprNode) -> InterpreterResult {
+        let value = expr.interpret(es)?.result();
         let output = match value {
             Value::Nil => String::from("nil"),
             Value::Boolean(true) => String::from("true"),
@@ -142,38 +155,42 @@ impl ast::StmtNode {
     /// Handle a variable declaration.
     fn on_var_decl(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         name: &Token,
         initializer: &Option<ast::ExprNode>,
     ) -> InterpreterResult {
         let variable = match initializer {
-            Some(expr) => Some(expr.interpret(environment)?.result()),
+            Some(expr) => Some(expr.interpret(es)?.result()),
             None => None,
         };
-        environment.borrow_mut().define(name, variable)?;
+        es.environment.borrow_mut().define(name, variable)?;
         Ok(InterpreterFlowControl::default())
     }
 
     /// Handle a function declaration.
     fn on_fun_decl(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         name: &Token,
         params: &[Token],
         body: &[ast::StmtNode],
     ) -> InterpreterResult {
         let fun = Function::new(Some(name), params, body);
-        environment
+        es.environment
             .borrow_mut()
             .define(name, Some(Value::Callable(fun)))?;
         Ok(InterpreterFlowControl::default())
     }
 
     /// Execute the contents of a block.
-    fn on_block(&self, environment: &EnvironmentRef, stmts: &[ast::StmtNode]) -> InterpreterResult {
-        let child = Environment::create_child(environment);
+    fn on_block(&self, es: &mut InterpreterState, stmts: &[ast::StmtNode]) -> InterpreterResult {
+        let mut child = InterpreterState{
+            environment: Environment::create_child(&es.environment),
+            globals: es.globals.clone(),
+            variables: es.variables,
+        };
         for stmt in stmts.iter() {
-            let result = stmt.interpret(&child)?;
+            let result = stmt.interpret(&mut child)?;
             if result.is_flow_control() {
                 return Ok(result);
             }
@@ -184,15 +201,15 @@ impl ast::StmtNode {
     /// Execute an if statement.
     fn on_if_statement(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         condition: &ast::ExprNode,
         then_branch: &ast::StmtNode,
         else_branch: &Option<Box<ast::StmtNode>>,
     ) -> InterpreterResult {
-        if condition.interpret(environment)?.result().is_truthy() {
-            then_branch.interpret(environment)
+        if condition.interpret(es)?.result().is_truthy() {
+            then_branch.interpret(es)
         } else if let Some(else_stmt) = else_branch {
-            else_stmt.interpret(environment)
+            else_stmt.interpret(es)
         } else {
             Ok(InterpreterFlowControl::default())
         }
@@ -201,15 +218,15 @@ impl ast::StmtNode {
     /// Execute a while statement.
     fn on_loop_statement(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         label: &Option<Token>,
         condition: &ast::ExprNode,
         body: &ast::StmtNode,
         after_body: &Option<Box<ast::StmtNode>>,
     ) -> InterpreterResult {
         let ln = label.as_ref().map(|token| token.lexeme.clone());
-        while condition.interpret(environment)?.result().is_truthy() {
-            let result = body.interpret(environment)?;
+        while condition.interpret(es)?.result().is_truthy() {
+            let result = body.interpret(es)?;
             match &result {
                 InterpreterFlowControl::Result(_) => (),
                 InterpreterFlowControl::Continue(lv) if lv == &ln => (),
@@ -217,7 +234,7 @@ impl ast::StmtNode {
                 _ => return Ok(result),
             }
             if let Some(stmt) = after_body {
-                let result = stmt.interpret(environment)?;
+                let result = stmt.interpret(es)?;
                 match &result {
                     InterpreterFlowControl::Result(_) => (),
                     InterpreterFlowControl::Continue(lv) if lv == &ln => (),
@@ -246,12 +263,12 @@ impl ast::StmtNode {
     /// Execute a return statement.
     fn on_return_statement(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         value: &Option<ast::ExprNode>,
     ) -> InterpreterResult {
         let rv = match value {
             None => Value::Nil,
-            Some(expr) => expr.interpret(environment)?.result(),
+            Some(expr) => expr.interpret(es)?.result(),
         };
         Ok(InterpreterFlowControl::Return(rv))
     }
@@ -262,32 +279,32 @@ impl ast::StmtNode {
  * -------------------------------- */
 
 impl Interpretable for ast::ExprNode {
-    fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult {
+    fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
         match self {
             ast::ExprNode::Assignment { name, value } => {
-                let value = value.interpret(environment)?.result();
-                environment.borrow_mut().assign(name, value)?;
+                let value = value.interpret(es)?.result();
+                es.environment.borrow_mut().assign(name, value)?;
                 Ok(InterpreterFlowControl::default())
             }
             ast::ExprNode::Logical {
                 left,
                 operator,
                 right,
-            } => self.on_logic(environment, left, operator, right),
+            } => self.on_logic(es, left, operator, right),
             ast::ExprNode::Binary {
                 left,
                 operator,
                 right,
-            } => self.on_binary(environment, left, operator, right),
-            ast::ExprNode::Unary { operator, right } => self.on_unary(environment, operator, right),
-            ast::ExprNode::Grouping { expression } => expression.interpret(environment),
+            } => self.on_binary(es, left, operator, right),
+            ast::ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
+            ast::ExprNode::Grouping { expression } => expression.interpret(es),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
-            ast::ExprNode::Variable { name } => Ok(environment.borrow().get(name)?.into()),
+            ast::ExprNode::Variable { name } => Ok(es.environment.borrow().get(name)?.into()),
             ast::ExprNode::Call {
                 callee,
                 right_paren,
                 arguments,
-            } => self.on_call(environment, callee, right_paren, arguments),
+            } => self.on_call(es, callee, right_paren, arguments),
             ast::ExprNode::Lambda { params, body } => {
                 Ok(Value::Callable(Function::new(None, params, body)).into())
             }
@@ -299,31 +316,31 @@ impl ast::ExprNode {
     /// Evaluate a logical operator.
     fn on_logic(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         left: &ast::ExprNode,
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let left_value = left.interpret(environment)?.result();
+        let left_value = left.interpret(es)?.result();
         if operator.token_type == TokenType::Or && left_value.is_truthy()
             || operator.token_type == TokenType::And && !left_value.is_truthy()
         {
             Ok(left_value.into())
         } else {
-            right.interpret(environment)
+            right.interpret(es)
         }
     }
 
     /// Evaluate a binary operator.
     fn on_binary(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         left: &ast::ExprNode,
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let left_value = left.interpret(environment)?.result();
-        let right_value = right.interpret(environment)?.result();
+        let left_value = left.interpret(es)?.result();
+        let right_value = right.interpret(es)?.result();
         match operator.token_type {
             TokenType::Plus => match (left_value, right_value) {
                 (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b).into()),
@@ -388,11 +405,11 @@ impl ast::ExprNode {
     /// Evaluate an unary operator.
     fn on_unary(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         operator: &Token,
         right: &ast::ExprNode,
     ) -> InterpreterResult {
-        let right_value = right.interpret(environment)?.result();
+        let right_value = right.interpret(es)?.result();
         match operator.token_type {
             TokenType::Minus => {
                 if let Value::Number(n) = right_value {
@@ -427,16 +444,16 @@ impl ast::ExprNode {
     /// Evaluate a function call.
     fn on_call(
         &self,
-        environment: &EnvironmentRef,
+        es: &mut InterpreterState,
         callee: &ast::ExprNode,
         right_paren: &Token,
         arguments: &Vec<ast::ExprNode>,
     ) -> InterpreterResult {
-        let callee = callee.interpret(environment)?.result();
+        let callee = callee.interpret(es)?.result();
         let arg_values = {
             let mut v = Vec::with_capacity(arguments.len());
             for argument in arguments.iter() {
-                v.push(argument.interpret(environment)?.result());
+                v.push(argument.interpret(es)?.result());
             }
             v
         };
@@ -453,7 +470,7 @@ impl ast::ExprNode {
                     ),
                 ))
             } else {
-                Ok(callable.call(environment, arg_values)?.into())
+                Ok(callable.call(es, arg_values)?.into())
             }
         } else {
             error(right_paren, "can only call functions and classes")

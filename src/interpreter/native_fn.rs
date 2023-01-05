@@ -6,7 +6,7 @@ use std::{
 
 use crate::errors::SloxResult;
 
-use super::{Callable, CallableRef, EnvironmentRef, Value};
+use super::{Callable, CallableRef, InterpreterState, Value};
 
 /* ----------- *
  *   clock()   *
@@ -20,7 +20,7 @@ impl Callable for Clock {
         0
     }
 
-    fn call(&self, _environment: &EnvironmentRef, _arguments: Vec<Value>) -> SloxResult<Value> {
+    fn call(&self, _environment: &mut InterpreterState, _arguments: Vec<Value>) -> SloxResult<Value> {
         let now = SystemTime::now();
         let since_epoch = now
             .duration_since(UNIX_EPOCH)
@@ -35,6 +35,6 @@ impl ToString for Clock {
     }
 }
 
-pub(crate) fn clock() -> CallableRef {
+pub(super) fn clock() -> CallableRef {
     Rc::new(RefCell::new(Clock {}))
 }
