@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Evaluate an interpretable, returning its value.
-pub fn evaluate(ast: &dyn Interpretable, vars: ResolvedVariables) -> SloxResult<Value> {
+pub fn evaluate(ast: &ast::ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
     let env = Rc::new(RefCell::new(Environment::default()));
     ast.interpret(&env).map(|v| v.result())
 }
@@ -21,7 +21,7 @@ pub fn evaluate(ast: &dyn Interpretable, vars: ResolvedVariables) -> SloxResult<
 /// Interpreter flow control, which may be either a value, a loop break or a
 /// loop continuation.
 #[derive(Debug)]
-pub enum InterpreterFlowControl {
+pub(super) enum InterpreterFlowControl {
     Result(Value),
     Break(Option<String>),
     Continue(Option<String>),
@@ -31,7 +31,7 @@ pub enum InterpreterFlowControl {
 impl InterpreterFlowControl {
     /// Return the result's value. If the flow control value does not represent
     /// a result, panic.
-    pub fn result(self) -> Value {
+    pub(super) fn result(self) -> Value {
         match self {
             Self::Result(v) => v,
             other => panic!("Result expected, {:?} found instead", other),
@@ -40,7 +40,7 @@ impl InterpreterFlowControl {
 
     /// Check whether a flow control value contains actual flow control
     /// information.
-    pub fn is_flow_control(&self) -> bool {
+    fn is_flow_control(&self) -> bool {
         matches!(self, Self::Break(_) | Self::Continue(_) | Self::Return(_))
     }
 }
@@ -58,10 +58,10 @@ impl From<Value> for InterpreterFlowControl {
 }
 
 /// A result returned by some part of the interpreter.
-pub type InterpreterResult = SloxResult<InterpreterFlowControl>;
+pub(super) type InterpreterResult = SloxResult<InterpreterFlowControl>;
 
 /// An Interpretable can be evaluated and will return a value.
-pub trait Interpretable {
+pub(super) trait Interpretable {
     fn interpret(&self, environment: &EnvironmentRef) -> InterpreterResult;
 }
 
