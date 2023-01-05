@@ -65,14 +65,13 @@ impl ResolverState {
     }
 
     fn resolve_local(&mut self, expr: &ast::ExprNode, name: &Token) {
-        let start = self.scopes.len() - 1;
-        let mut i = start;
+        let mut i = self.scopes.len();
         while i != 0 {
+            i -= 1;
             if self.scopes[i].contains_key(&name.lexeme as &str) {
                 self.mark_resolved(expr, self.scopes.len() - 1 - i);
                 return;
             }
-            i -= 1;
         }
     }
 
