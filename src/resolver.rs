@@ -30,12 +30,21 @@ impl ResolverState {
         self.scopes.pop();
     }
 
-    fn declare(&mut self, name: &Token) {
+    fn declare(&mut self, name: &Token) -> ResolverResult {
         if !self.scopes.is_empty() {
             let idx = self.scopes.len() - 1;
-            let top = &mut self.scopes[idx];
-            top.insert(name.lexeme.clone(), false);
+            let scope = &mut self.scopes[idx];
+            if scope.contains_key(&name.lexeme as &str) {
+                return Err(SloxError::with_token(
+                    ErrorKind::Parse,
+                    name,
+                    "already a variable with this name in this scope".to_owned(),
+                ));
+            } else {
+                scope.insert(name.lexeme.clone(), false);
+            }
         }
+        return Ok(());
     }
 
     fn define(&mut self, name: &Token) {
@@ -70,7 +79,7 @@ impl ResolverState {
     fn resolve_function(&mut self, params: &[Token], body: &Vec<ast::StmtNode>) -> ResolverResult {
         self.begin_scope();
         for param in params {
-            self.declare(param);
+            self.declare(param)?;
             self.define(param);
         }
         // Unlike the original Lox, function arguments and function bodies do
@@ -93,7 +102,10 @@ trait VarResolver {
 
 impl VarResolver for ast::ProgramNode {
     fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
-        self.0.resolve(rs)
+        rs.begin_scope();
+        let result = self.0.resolve(rs);
+        rs.end_scope();
+        result
     }
 }
 
@@ -117,19 +129,19 @@ impl VarResolver for ast::StmtNode {
             }
 
             ast::StmtNode::VarDecl(name, None) => {
-                rs.declare(name);
+                rs.declare(name)?;
                 rs.define(name);
                 Ok(())
             }
             ast::StmtNode::VarDecl(name, Some(init)) => {
-                rs.declare(name);
+                rs.declare(name)?;
                 init.resolve(rs)?;
                 rs.define(name);
                 Ok(())
             }
 
             ast::StmtNode::FunDecl { name, params, body } => {
-                rs.declare(name);
+                rs.declare(name)?;
                 rs.define(name);
                 rs.resolve_function(params, body)
             }
