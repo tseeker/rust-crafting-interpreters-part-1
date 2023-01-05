@@ -75,24 +75,25 @@ impl ResolverState {
         }
     }
 
-    fn resolve_function(&mut self, params: &[Token], body: &Vec<ast::StmtNode>) -> ResolverResult {
-        self.begin_scope();
-        for param in params {
-            self.declare(param)?;
-            self.define(param);
-        }
-        // Unlike the original Lox, function arguments and function bodies do
-        // not use the same environment.
-        self.begin_scope();
-        let result = body.resolve(self);
-        self.end_scope();
-        self.end_scope();
-        result
-    }
-
     fn mark_resolved(&mut self, expr: &ast::ExprNode, depth: usize) {
         self.resolved.insert(expr as *const ast::ExprNode, depth);
     }
+}
+
+/// Process a function declaration.
+fn resolve_function(rs: &mut ResolverState, params: &[Token], body: &Vec<ast::StmtNode>) -> ResolverResult {
+    rs.begin_scope();
+    for param in params {
+        rs.declare(param)?;
+        rs.define(param);
+    }
+    // Unlike the original Lox, function arguments and function bodies do
+    // not use the same environment.
+    rs.begin_scope();
+    let result = body.resolve(rs);
+    rs.end_scope();
+    rs.end_scope();
+    result
 }
 
 trait VarResolver {
@@ -142,7 +143,7 @@ impl VarResolver for ast::StmtNode {
             ast::StmtNode::FunDecl { name, params, body } => {
                 rs.declare(name)?;
                 rs.define(name);
-                rs.resolve_function(params, body)
+                resolve_function(rs, params, body)
             }
 
             ast::StmtNode::If {
@@ -216,7 +217,7 @@ impl VarResolver for ast::ExprNode {
                 Ok(())
             }
 
-            ast::ExprNode::Lambda { params, body } => rs.resolve_function(params, body),
+            ast::ExprNode::Lambda { params, body } => resolve_function(rs, params, body),
 
             ast::ExprNode::Logical {
                 left,
