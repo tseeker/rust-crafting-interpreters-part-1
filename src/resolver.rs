@@ -121,10 +121,7 @@ trait VarResolver {
 
 impl VarResolver for ast::ProgramNode {
     fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
-        rs.begin_scope();
-        let result = self.0.resolve(rs);
-        rs.end_scope();
-        result
+        self.0.resolve(rs)
     }
 }
 
