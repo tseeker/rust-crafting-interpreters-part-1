@@ -145,7 +145,7 @@ impl Scanner {
             // Identifiers
             ch if ch.is_ascii_alphabetic() => self.identifier(),
             // Anything else is an error
-            _ => return self.error("unexpected character".to_owned()),
+            _ => self.error("unexpected character".to_owned()),
         }
     }
 
