@@ -81,6 +81,25 @@ impl Environment {
         }
     }
 
+    /// Access a variable at a specified distance in a parent environment.
+    pub fn get_at(&self, distance: usize, name: &Token) -> Value {
+        self.ancestor(distance)
+            .values
+            .get(&name.lexeme as &str)
+            .unwrap()
+            .unwrap()
+            .clone()
+    }
+
+    /// Access the ancestor environment at a specified distance from the current one.
+    fn ancestor(&self, distance: usize) -> &Self {
+        if distance == 0 {
+            &self
+        } else {
+            self.enclosing.unwrap().borrow().ancestor(distance - 1)
+        }
+    }
+
     /// Assign a value to an existing variable.
     pub fn assign(&mut self, name: &Token, value: Value) -> SloxResult<()> {
         if self.values.contains_key(&name.lexeme as &str) {

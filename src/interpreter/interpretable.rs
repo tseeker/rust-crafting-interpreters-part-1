@@ -48,6 +48,13 @@ impl<'a> InterpreterState<'a> {
             variables: parent.variables,
         }
     }
+
+    fn lookup_var(&self, name: &Token, expr : &ast::ExprNode) -> SloxResult<Value> {
+        match self.variables.get(&(expr as *const ast::ExprNode)) {
+            Some(distance) => Ok(self.environment.borrow().get_at(*distance, name)),
+            None => self.environment.borrow().get(name),
+        }
+    }
 }
 
 /// Interpreter flow control, which may be either a value, a loop break or a
