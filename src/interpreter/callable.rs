@@ -5,7 +5,7 @@ use crate::errors::SloxResult;
 use super::{InterpreterState, Value};
 
 /// A callable is some object that supports being called.
-pub(super) trait Callable: Debug + ToString {
+pub trait Callable: Debug + ToString {
     /// Return the amount of arguments supported by the callable.
     fn arity(&self) -> usize;
 
@@ -15,4 +15,4 @@ pub(super) trait Callable: Debug + ToString {
 }
 
 /// A reference to a callable.
-pub(super) type CallableRef = Rc<RefCell<dyn Callable>>;
+pub type CallableRef = Rc<RefCell<dyn Callable>>;

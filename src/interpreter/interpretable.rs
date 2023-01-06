@@ -10,12 +10,7 @@ use crate::{
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(ast: &ast::ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
-    let env = Rc::new(RefCell::new(Environment::default()));
-    let mut state = InterpreterState{
-        environment: env.clone(),
-        globals: env,
-        variables: &vars,
-    };
+    let mut state = InterpreterState::new(&vars);
     ast.interpret(&mut state).map(|v| v.result())
 }
 
@@ -25,10 +20,34 @@ pub fn evaluate(ast: &ast::ProgramNode, vars: ResolvedVariables) -> SloxResult<V
 
 /// The state of the interpreter.
 #[derive(Debug)]
-pub(super) struct InterpreterState<'a> {
+pub struct InterpreterState<'a> {
     pub(super) globals: EnvironmentRef,
     pub(super) environment: EnvironmentRef,
     pub(super) variables: &'a ResolvedVariables,
+}
+
+impl<'a> InterpreterState<'a> {
+    /// Initialize the interpreter state from the resolved variables map.
+    fn new(vars: &'a ResolvedVariables) -> Self {
+        let env = Rc::new(RefCell::new(Environment::default()));
+        Self {
+            environment: env.clone(),
+            globals: env,
+            variables: &vars,
+        }
+    }
+
+    /// Create a child state.
+    fn create_child<'b>(parent: &InterpreterState<'b>) -> Self
+    where
+        'b: 'a,
+    {
+        InterpreterState {
+            environment: Environment::create_child(&parent.environment),
+            globals: parent.globals.clone(),
+            variables: parent.variables,
+        }
+    }
 }
 
 /// Interpreter flow control, which may be either a value, a loop break or a
@@ -129,9 +148,7 @@ impl Interpretable for ast::StmtNode {
                 is_break,
                 loop_name,
             } => self.on_loop_control_statemement(*is_break, loop_name),
-            ast::StmtNode::Return { token: _, value } => {
-                self.on_return_statement(es, value)
-            }
+            ast::StmtNode::Return { token: _, value } => self.on_return_statement(es, value),
         }
     }
 }
@@ -184,11 +201,7 @@ impl ast::StmtNode {
 
     /// Execute the contents of a block.
     fn on_block(&self, es: &mut InterpreterState, stmts: &[ast::StmtNode]) -> InterpreterResult {
-        let mut child = InterpreterState{
-            environment: Environment::create_child(&es.environment),
-            globals: es.globals.clone(),
-            variables: es.variables,
-        };
+        let mut child = InterpreterState::create_child(es);
         for stmt in stmts.iter() {
             let result = stmt.interpret(&mut child)?;
             if result.is_flow_control() {
