@@ -143,7 +143,7 @@ impl Scanner {
             // Numbers
             ch if ch.is_ascii_digit() => self.number(),
             // Identifiers
-            ch if ch.is_ascii_alphabetic() => self.identifier(),
+            ch if ch.is_ascii_alphabetic() || ch == '_' => self.identifier(),
             // Anything else is an error
             _ => self.error("unexpected character".to_owned()),
         }
