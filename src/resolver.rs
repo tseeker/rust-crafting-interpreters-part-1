@@ -14,7 +14,9 @@ pub type ResolvedVariables = HashMap<usize, usize>;
 /// Resolve all variables in a program's AST.
 pub fn resolve_variables(program: &ast::ProgramNode) -> SloxResult<ResolvedVariables> {
     let mut state = ResolverState::default();
-    program.resolve(&mut state).map(|_| state.resolved)
+    state
+        .with_scope(|rs| program.resolve(rs))
+        .map(|_| state.resolved)
 }
 
 type ResolverResult = SloxResult<()>;
@@ -70,9 +72,7 @@ impl ResolverState {
     /// Try to declare a symbol. If the scope already contains a declaration
     /// for the same name, return an error.
     fn declare(&mut self, name: &Token, kind: SymKind) -> ResolverResult {
-        if self.scopes.is_empty() {
-            return Ok(());
-        }
+        assert!(!self.scopes.is_empty());
         let idx = self.scopes.len() - 1;
         let scope = &mut self.scopes[idx];
         if scope.contains_key(&name.lexeme as &str) {
@@ -96,13 +96,12 @@ impl ResolverState {
     /// Mark a symbol as defined. If the symbol has already been defined or
     /// used, its state isn't affected.
     fn define(&mut self, name: &Token) {
-        if !self.scopes.is_empty() {
-            let idx = self.scopes.len() - 1;
-            let top = &mut self.scopes[idx];
-            if let Some(info) = top.get_mut(&name.lexeme as &str) {
-                if info.state == SymState::Declared {
-                    info.state = SymState::Defined;
-                }
+        assert!(!self.scopes.is_empty());
+        let idx = self.scopes.len() - 1;
+        let top = &mut self.scopes[idx];
+        if let Some(info) = top.get_mut(&name.lexeme as &str) {
+            if info.state == SymState::Declared {
+                info.state = SymState::Defined;
             }
         }
     }
@@ -140,7 +139,11 @@ impl ResolverState {
                     }
                     info.state = SymState::Used;
                 }
-                self.mark_resolved(expr_id, self.scopes.len() - 1 - i);
+                // Only mark symbols as locals if we're not at the top-level
+                // scope.
+                if i != 0 {
+                    self.mark_resolved(expr_id, self.scopes.len() - 1 - i);
+                }
                 return Ok(());
             }
         }
