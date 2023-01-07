@@ -49,15 +49,15 @@ impl<'a> InterpreterState<'a> {
         }
     }
 
-    fn lookup_var(&self, name: &Token, expr: &ast::ExprNode) -> SloxResult<Value> {
-        match self.variables.get(&(expr as *const ast::ExprNode)) {
+    fn lookup_var(&self, name: &Token, expr_id: &usize) -> SloxResult<Value> {
+        match self.variables.get(expr_id) {
             Some(distance) => self.environment.borrow().get_at(*distance, name),
             None => self.globals.borrow().get(name),
         }
     }
 
-    fn assign_var(&self, name: &Token, expr: &ast::ExprNode, value: Value) -> SloxResult<()> {
-        match self.variables.get(&(expr as *const ast::ExprNode)) {
+    fn assign_var(&self, name: &Token, expr_id: &usize, value: Value) -> SloxResult<()> {
+        match self.variables.get(expr_id) {
             Some(distance) => self
                 .environment
                 .borrow_mut()
@@ -311,9 +311,9 @@ impl ast::StmtNode {
 impl Interpretable for ast::ExprNode {
     fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
         match self {
-            ast::ExprNode::Assignment { name, value } => {
+            ast::ExprNode::Assignment { name, value, id } => {
                 let value = value.interpret(es)?.result();
-                es.assign_var(name, &self, value)?;
+                es.assign_var(name, id, value)?;
                 Ok(InterpreterFlowControl::default())
             }
             ast::ExprNode::Logical {
@@ -329,7 +329,7 @@ impl Interpretable for ast::ExprNode {
             ast::ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
             ast::ExprNode::Grouping { expression } => expression.interpret(es),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
-            ast::ExprNode::Variable { name } => Ok(es.lookup_var(name, &self)?.into()),
+            ast::ExprNode::Variable { name, id } => Ok(es.lookup_var(name, id)?.into()),
             ast::ExprNode::Call {
                 callee,
                 right_paren,

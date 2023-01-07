@@ -12,6 +12,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
     loop_state: Vec<LoopParsingState>,
+    next_id: usize,
 }
 
 /// The state of the parser regarding loops. We may be parsing an unnamed or
@@ -69,6 +70,7 @@ impl Parser {
             tokens,
             current: 0,
             loop_state: Vec::default(),
+            next_id: 0,
         }
     }
 
@@ -511,10 +513,11 @@ impl Parser {
         let expr = self.parse_logic_or()?;
         if let Some(equals) = self.expect(&[TokenType::Equal]) {
             let value = self.parse_assignment()?;
-            if let ast::ExprNode::Variable { name } = expr {
+            if let ast::ExprNode::Variable { name, id: _ } = expr {
                 Ok(ast::ExprNode::Assignment {
                     name,
                     value: Box::new(value),
+                    id: self.make_id(),
                 })
             } else {
                 Err(SloxError::with_token(
@@ -688,6 +691,7 @@ impl Parser {
                 }),
                 TokenType::Identifier(_) => Ok(ast::ExprNode::Variable {
                     name: self.advance().clone(),
+                    id: self.make_id(),
                 }),
                 _ => self.error("expected expression"),
             }
@@ -829,5 +833,12 @@ impl Parser {
             self.peek(),
             message,
         ))
+    }
+
+    /// Generate an identifier and return it.
+    fn make_id(&mut self) -> usize {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
     }
 }

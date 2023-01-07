@@ -65,7 +65,12 @@ impl StmtNode {
 #[derive(Debug, Clone)]
 pub enum ExprNode {
     /// Assignment to a variable.
-    Assignment { name: Token, value: Box<ExprNode> },
+    Assignment {
+        name: Token,
+        value: Box<ExprNode>,
+        /// Identifier used for variable resolution.
+        id: usize,
+    },
 
     /// Logical binary expression.
     Logical {
@@ -94,7 +99,11 @@ pub enum ExprNode {
     Litteral { value: Token },
 
     /// A reference to a variable.
-    Variable { name: Token },
+    Variable {
+        name: Token,
+        /// Identifier used for variable resolution.
+        id: usize,
+    },
 
     /// A lambda function.
     Lambda {
@@ -227,7 +236,7 @@ impl AstDumper for StmtNode {
 impl AstDumper for ExprNode {
     fn dump(&self) -> String {
         match self {
-            Self::Assignment { name, value } => format!("( = {} {} )", name.lexeme, value.dump()),
+            Self::Assignment { name, value, id } => format!("{{#{}}}( = {} {} )", id, name.lexeme, value.dump()),
             Self::Logical {
                 left,
                 operator,
@@ -240,7 +249,7 @@ impl AstDumper for ExprNode {
             } => format!("( {} {} {} )", operator.lexeme, left.dump(), right.dump()),
             Self::Unary { operator, right } => format!("( {} {} )", operator.lexeme, right.dump()),
             Self::Grouping { expression } => format!("( {} )", expression.dump()),
-            Self::Variable { name } => name.lexeme.clone(),
+            Self::Variable { name, id } => format!("{{#{}}}{}", id, name.lexeme),
             Self::Litteral { value } => {
                 if value.is_litteral() {
                     value.lexeme.clone()
@@ -249,10 +258,7 @@ impl AstDumper for ExprNode {
                 }
             }
 
-            ExprNode::Lambda {
-                params,
-                body,
-            } => {
+            ExprNode::Lambda { params, body } => {
                 format!(
                     "( fun ({}) {} )",
                     params

@@ -9,7 +9,7 @@ use crate::{
 /// Resolved variables. Pointers to the AST nodes using the variables are
 /// associated with the relative depth at which the variable definition will be
 /// found.
-pub type ResolvedVariables = HashMap<*const ast::ExprNode, usize>;
+pub type ResolvedVariables = HashMap<usize, usize>;
 
 /// Resolve all variables in a program's AST.
 pub fn resolve_variables(program: &ast::ProgramNode) -> SloxResult<ResolvedVariables> {
@@ -80,25 +80,29 @@ impl ResolverState {
 
     /// Try to resolve some access to a variable. If a local variable is found
     /// matching the specified name, add it to the resolution map.
-    fn resolve_local(&mut self, expr: &ast::ExprNode, name: &Token) {
+    fn resolve_local(&mut self, expr_id: &usize, name: &Token) {
         let mut i = self.scopes.len();
         while i != 0 {
             i -= 1;
             if self.scopes[i].contains_key(&name.lexeme as &str) {
-                self.mark_resolved(expr, self.scopes.len() - 1 - i);
+                self.mark_resolved(expr_id, self.scopes.len() - 1 - i);
                 return;
             }
         }
     }
 
     /// Add an entry to the resolution map for an AST node.
-    fn mark_resolved(&mut self, expr: &ast::ExprNode, depth: usize) {
-        self.resolved.insert(expr as *const ast::ExprNode, depth);
+    fn mark_resolved(&mut self, expr_id: &usize, depth: usize) {
+        self.resolved.insert(*expr_id, depth);
     }
 }
 
 /// Process a function declaration.
-fn resolve_function(rs: &mut ResolverState, params: &[Token], body: &Vec<ast::StmtNode>) -> ResolverResult {
+fn resolve_function(
+    rs: &mut ResolverState,
+    params: &[Token],
+    body: &Vec<ast::StmtNode>,
+) -> ResolverResult {
     rs.begin_scope();
     for param in params {
         rs.declare(param)?;
@@ -214,7 +218,7 @@ impl VarResolver for ast::StmtNode {
 impl VarResolver for ast::ExprNode {
     fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
         match self {
-            ast::ExprNode::Variable { name } => {
+            ast::ExprNode::Variable { name, id } => {
                 if rs.check(&name.lexeme) == Some(false) {
                     Err(SloxError::with_token(
                         ErrorKind::Parse,
@@ -222,14 +226,14 @@ impl VarResolver for ast::ExprNode {
                         "can't read local variable in its own initializer".to_owned(),
                     ))
                 } else {
-                    rs.resolve_local(self, name);
+                    rs.resolve_local(id, name);
                     Ok(())
                 }
             }
 
-            ast::ExprNode::Assignment { name, value } => {
+            ast::ExprNode::Assignment { name, value, id } => {
                 value.resolve(rs)?;
-                rs.resolve_local(self, name);
+                rs.resolve_local(id, name);
                 Ok(())
             }
 
