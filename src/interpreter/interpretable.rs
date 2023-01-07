@@ -23,17 +23,17 @@ pub fn evaluate(ast: &ast::ProgramNode, vars: ResolvedVariables) -> SloxResult<V
 pub struct InterpreterState<'a> {
     pub(super) globals: EnvironmentRef,
     pub(super) environment: EnvironmentRef,
-    pub(super) variables: &'a ResolvedVariables,
+    pub(super) locals: &'a ResolvedVariables,
 }
 
 impl<'a> InterpreterState<'a> {
     /// Initialize the interpreter state from the resolved variables map.
-    fn new(vars: &'a ResolvedVariables) -> Self {
+    fn new(locals: &'a ResolvedVariables) -> Self {
         let env = Rc::new(RefCell::new(Environment::default()));
         Self {
             environment: env.clone(),
             globals: env,
-            variables: &vars,
+            locals: &locals,
         }
     }
 
@@ -45,19 +45,19 @@ impl<'a> InterpreterState<'a> {
         InterpreterState {
             environment: Environment::create_child(&parent.environment),
             globals: parent.globals.clone(),
-            variables: parent.variables,
+            locals: parent.locals,
         }
     }
 
     fn lookup_var(&self, name: &Token, expr_id: &usize) -> SloxResult<Value> {
-        match self.variables.get(expr_id) {
+        match self.locals.get(expr_id) {
             Some(distance) => self.environment.borrow().get_at(*distance, name),
             None => self.globals.borrow().get(name),
         }
     }
 
     fn assign_var(&self, name: &Token, expr_id: &usize, value: Value) -> SloxResult<()> {
-        match self.variables.get(expr_id) {
+        match self.locals.get(expr_id) {
             Some(distance) => self
                 .environment
                 .borrow_mut()
