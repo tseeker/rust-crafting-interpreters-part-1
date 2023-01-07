@@ -76,11 +76,10 @@ impl<'a> ResolverState<'a> {
         self.scopes[self.scopes.len() - 1]
             .values()
             .filter(|v| v.state != SymState::Used)
-            .filter(|v| !v.decl.lexeme.starts_with("_"))
-            .nth(0)
+            .find(|v| !v.decl.lexeme.starts_with('_'))
             .map_or(Ok(()), |v| {
                 self.error(
-                    &v.decl,
+                    v.decl,
                     "unused symbol; prefix its name with '_' to avoid this error",
                 )
             })

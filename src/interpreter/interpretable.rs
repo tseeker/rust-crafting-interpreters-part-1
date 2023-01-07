@@ -33,7 +33,7 @@ impl<'a> InterpreterState<'a> {
         Self {
             environment: env.clone(),
             globals: env,
-            locals: &locals,
+            locals,
         }
     }
 
