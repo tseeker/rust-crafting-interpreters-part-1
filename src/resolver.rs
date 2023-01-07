@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast,
+    ast::{ExprNode, ProgramNode, StmtNode},
     errors::{ErrorKind, SloxError, SloxResult},
     tokens::Token,
 };
@@ -12,7 +12,7 @@ use crate::{
 pub type ResolvedVariables = HashMap<usize, usize>;
 
 /// Resolve all variables in a program's AST.
-pub fn resolve_variables(program: &ast::ProgramNode) -> SloxResult<ResolvedVariables> {
+pub fn resolve_variables(program: &ProgramNode) -> SloxResult<ResolvedVariables> {
     let mut state = ResolverState::default();
     state
         .with_scope(|rs| program.resolve(rs))
@@ -193,7 +193,7 @@ impl<'a> ResolverState<'a> {
 fn resolve_function<'a, 'b>(
     rs: &mut ResolverState<'a>,
     params: &'b [Token],
-    body: &'b Vec<ast::StmtNode>,
+    body: &'b Vec<StmtNode>,
 ) -> ResolverResult
 where
     'b: 'a,
@@ -215,7 +215,7 @@ trait VarResolver {
         'a: 'b;
 }
 
-impl VarResolver for ast::ProgramNode {
+impl VarResolver for ProgramNode {
     fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
     where
         'a: 'b,
@@ -224,7 +224,7 @@ impl VarResolver for ast::ProgramNode {
     }
 }
 
-impl VarResolver for Vec<ast::StmtNode> {
+impl VarResolver for Vec<StmtNode> {
     fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
     where
         'a: 'b,
@@ -236,37 +236,37 @@ impl VarResolver for Vec<ast::StmtNode> {
     }
 }
 
-impl VarResolver for ast::StmtNode {
+impl VarResolver for StmtNode {
     fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
     where
         'a: 'b,
     {
         match self {
-            ast::StmtNode::Block(stmts) => rs.with_scope(|rs| stmts.resolve(rs)),
+            StmtNode::Block(stmts) => rs.with_scope(|rs| stmts.resolve(rs)),
 
-            ast::StmtNode::VarDecl(name, None) => {
+            StmtNode::VarDecl(name, None) => {
                 rs.declare(name, SymKind::Variable)?;
                 Ok(())
             }
-            ast::StmtNode::VarDecl(name, Some(init)) => {
+            StmtNode::VarDecl(name, Some(init)) => {
                 rs.declare(name, SymKind::Variable)?;
                 init.resolve(rs)?;
                 rs.define(name);
                 Ok(())
             }
 
-            ast::StmtNode::FunDecl { name, params, body } => {
-                rs.declare(name, SymKind::Function)?;
-                rs.define(name);
-                rs.with_scope(|rs| resolve_function(rs, params, body))
+            StmtNode::FunDecl(decl) => {
+                rs.declare(&decl.name, SymKind::Function)?;
+                rs.define(&decl.name);
+                rs.with_scope(|rs| resolve_function(rs, &decl.params, &decl.body))
             }
 
-            ast::StmtNode::If {
+            StmtNode::If {
                 condition,
                 then_branch,
                 else_branch: None,
             } => condition.resolve(rs).and_then(|_| then_branch.resolve(rs)),
-            ast::StmtNode::If {
+            StmtNode::If {
                 condition,
                 then_branch,
                 else_branch: Some(else_branch),
@@ -275,7 +275,7 @@ impl VarResolver for ast::StmtNode {
                 .and_then(|_| then_branch.resolve(rs))
                 .and_then(|_| else_branch.resolve(rs)),
 
-            ast::StmtNode::Loop {
+            StmtNode::Loop {
                 label: _,
                 condition,
                 body,
@@ -291,18 +291,18 @@ impl VarResolver for ast::StmtNode {
                 })
                 .and_then(|_| body.resolve(rs)),
 
-            ast::StmtNode::Return {
+            StmtNode::Return {
                 token: _,
                 value: None,
             } => Ok(()),
-            ast::StmtNode::Return {
+            StmtNode::Return {
                 token: _,
                 value: Some(expr),
             } => expr.resolve(rs),
 
-            ast::StmtNode::Expression(expr) => expr.resolve(rs),
-            ast::StmtNode::Print(expr) => expr.resolve(rs),
-            ast::StmtNode::LoopControl {
+            StmtNode::Expression(expr) => expr.resolve(rs),
+            StmtNode::Print(expr) => expr.resolve(rs),
+            StmtNode::LoopControl {
                 is_break: _,
                 loop_name: _,
             } => Ok(()),
@@ -310,37 +310,37 @@ impl VarResolver for ast::StmtNode {
     }
 }
 
-impl VarResolver for ast::ExprNode {
+impl VarResolver for ExprNode {
     fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
     where
         'a: 'b,
     {
         match self {
-            ast::ExprNode::Variable { name, id } => rs.resolve_use(id, name),
+            ExprNode::Variable { name, id } => rs.resolve_use(id, name),
 
-            ast::ExprNode::Assignment { name, value, id } => {
+            ExprNode::Assignment { name, value, id } => {
                 value.resolve(rs)?;
                 rs.resolve_assignment(id, name)
             }
 
-            ast::ExprNode::Lambda { params, body } => {
+            ExprNode::Lambda { params, body } => {
                 rs.with_scope(|rs| resolve_function(rs, params, body))
             }
 
-            ast::ExprNode::Logical {
+            ExprNode::Logical {
                 left,
                 operator: _,
                 right,
             } => left.resolve(rs).and_then(|_| right.resolve(rs)),
-            ast::ExprNode::Binary {
+            ExprNode::Binary {
                 left,
                 operator: _,
                 right,
             } => left.resolve(rs).and_then(|_| right.resolve(rs)),
-            ast::ExprNode::Unary { operator: _, right } => right.resolve(rs),
-            ast::ExprNode::Grouping { expression } => expression.resolve(rs),
-            ast::ExprNode::Litteral { value: _ } => Ok(()),
-            ast::ExprNode::Call {
+            ExprNode::Unary { operator: _, right } => right.resolve(rs),
+            ExprNode::Grouping { expression } => expression.resolve(rs),
+            ExprNode::Litteral { value: _ } => Ok(()),
+            ExprNode::Call {
                 callee,
                 right_paren: _,
                 arguments,
@@ -349,7 +349,7 @@ impl VarResolver for ast::ExprNode {
     }
 }
 
-impl VarResolver for Vec<ast::ExprNode> {
+impl VarResolver for Vec<ExprNode> {
     fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
     where
         'a: 'b,

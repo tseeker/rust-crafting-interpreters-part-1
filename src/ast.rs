@@ -8,17 +8,21 @@ use crate::tokens::Token;
 #[derive(Default, Debug, Clone)]
 pub struct ProgramNode(pub Vec<StmtNode>);
 
+/// A function declaration.
+#[derive(Debug, Clone)]
+pub struct FunDecl {
+    pub name: Token,
+    pub params: Vec<Token>,
+    pub body: Vec<StmtNode>,
+}
+
 /// An AST node that represents a statement.
 #[derive(Debug, Clone)]
 pub enum StmtNode {
     /// A variable declaration
     VarDecl(Token, Option<ExprNode>),
     /// A function declaration
-    FunDecl {
-        name: Token,
-        params: Vec<Token>,
-        body: Vec<StmtNode>,
-    },
+    FunDecl(FunDecl),
     /// An single expression
     Expression(ExprNode),
     /// The print statement
@@ -149,15 +153,15 @@ impl AstDumper for StmtNode {
             Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name.lexeme, expr.dump()),
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
 
-            Self::FunDecl { name, params, body } => format!(
+            Self::FunDecl(fun_decl) => format!(
                 "( fun {} ({}) {} )",
-                name.lexeme,
-                params
+                fun_decl.name.lexeme,
+                fun_decl.params
                     .iter()
                     .map(|token| &token.lexeme as &str)
                     .collect::<Vec<&str>>()
                     .join(" "),
-                body.iter()
+                fun_decl.body.iter()
                     .map(|stmt| stmt.dump())
                     .collect::<Vec<String>>()
                     .join(" ")

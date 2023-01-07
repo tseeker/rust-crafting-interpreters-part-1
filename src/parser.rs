@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    ast,
+    ast::{ExprNode, FunDecl, ProgramNode, StmtNode},
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
 };
@@ -76,7 +76,7 @@ impl Parser {
 
     /// Parse the tokens into an AST and return it, or return nothing if a
     /// parser error occurs.
-    pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> SloxResult<ast::ProgramNode> {
+    pub fn parse(mut self, err_hdl: &mut ErrorHandler) -> SloxResult<ProgramNode> {
         self.loop_state.push(LoopParsingState::None);
         let result = self.parse_program(err_hdl);
         self.loop_state.pop();
@@ -113,8 +113,8 @@ impl Parser {
     /// ```
     /// program := statement*
     /// ```
-    fn parse_program(&mut self, err_hdl: &mut ErrorHandler) -> ast::ProgramNode {
-        let mut stmts: Vec<ast::StmtNode> = Vec::new();
+    fn parse_program(&mut self, err_hdl: &mut ErrorHandler) -> ProgramNode {
+        let mut stmts: Vec<StmtNode> = Vec::new();
         while !self.is_at_end() {
             match self.parse_statement() {
                 Ok(node) => stmts.push(node),
@@ -124,7 +124,7 @@ impl Parser {
                 }
             }
         }
-        ast::ProgramNode(stmts)
+        ProgramNode(stmts)
     }
 
     /// Parse the following rule:
@@ -141,7 +141,7 @@ impl Parser {
     /// statement := loop_control_statement
     /// statement := return_statement
     /// ```
-    fn parse_statement(&mut self) -> SloxResult<ast::StmtNode> {
+    fn parse_statement(&mut self) -> SloxResult<StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
             self.parse_var_declaration()
         } else if self.expect(&[TokenType::Fun]).is_some() {
@@ -169,7 +169,7 @@ impl Parser {
         } else if self.expect(&[TokenType::Print]).is_some() {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
-            Ok(ast::StmtNode::Print(expression))
+            Ok(StmtNode::Print(expression))
         } else {
             self.parse_expression_stmt()
         }
@@ -179,10 +179,10 @@ impl Parser {
     /// ```
     /// expression_stmt := expression ";"
     /// ```
-    fn parse_expression_stmt(&mut self) -> SloxResult<ast::StmtNode> {
+    fn parse_expression_stmt(&mut self) -> SloxResult<StmtNode> {
         let expression = self.parse_expression()?;
         self.consume(&TokenType::Semicolon, "expected ';' after expression")?;
-        Ok(ast::StmtNode::Expression(expression))
+        Ok(StmtNode::Expression(expression))
     }
 
     /// Parse the following rule:
@@ -190,12 +190,12 @@ impl Parser {
     /// var_declaration := "var" IDENTIFIER ";"
     /// var_declaration := "var" IDENTIFIER "=" expression ";"
     /// ```
-    fn parse_var_declaration(&mut self) -> SloxResult<ast::StmtNode> {
+    fn parse_var_declaration(&mut self) -> SloxResult<StmtNode> {
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
             _ => return self.error("expected variable name"),
         };
-        let initializer: Option<ast::ExprNode> = match self.expect(&[TokenType::Equal]) {
+        let initializer: Option<ExprNode> = match self.expect(&[TokenType::Equal]) {
             Some(_) => Some(self.parse_expression()?),
             None => None,
         };
@@ -203,7 +203,7 @@ impl Parser {
             &TokenType::Semicolon,
             "expected ';' after variable declaration",
         )?;
-        Ok(ast::StmtNode::VarDecl(name, initializer))
+        Ok(StmtNode::VarDecl(name, initializer))
     }
 
     /// Parse the following rule:
@@ -212,18 +212,18 @@ impl Parser {
     /// function        := IDENTIFIER function_info
     /// ```
     /// The `kind` parameter is used to generate error messages.
-    fn parse_fun_declaration(&mut self, kind: FunctionKind) -> SloxResult<ast::StmtNode> {
+    fn parse_fun_declaration(&mut self, kind: FunctionKind) -> SloxResult<StmtNode> {
         // Read the name
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
             _ => return self.error_mv(format!("expected {} name", kind.name())),
         };
         let (params, block) = self.parse_function_info(kind)?;
-        Ok(ast::StmtNode::FunDecl {
+        Ok(StmtNode::FunDecl(FunDecl {
             name,
             params,
             body: block,
-        })
+        }))
     }
 
     /// Parse the following rules:
@@ -234,7 +234,7 @@ impl Parser {
     fn parse_function_info(
         &mut self,
         kind: FunctionKind,
-    ) -> SloxResult<(Vec<Token>, Vec<ast::StmtNode>)> {
+    ) -> SloxResult<(Vec<Token>, Vec<StmtNode>)> {
         // Read the list of parameter names
         self.consume(
             &TokenType::LeftParen,
@@ -286,13 +286,13 @@ impl Parser {
     /// ```
     /// block := "{" statement* "}"
     /// ```
-    fn parse_block(&mut self) -> SloxResult<ast::StmtNode> {
-        let mut stmts: Vec<ast::StmtNode> = Vec::new();
+    fn parse_block(&mut self) -> SloxResult<StmtNode> {
+        let mut stmts: Vec<StmtNode> = Vec::new();
         while !(self.check(&TokenType::RightBrace) || self.is_at_end()) {
             stmts.push(self.parse_statement()?);
         }
         self.consume(&TokenType::RightBrace, "expected '}' after block.")?;
-        Ok(ast::StmtNode::Block(stmts))
+        Ok(StmtNode::Block(stmts))
     }
 
     /// Parse the following rule:
@@ -300,7 +300,7 @@ impl Parser {
     /// if_statement := "if" "(" expression ")" statement
     /// if_statement := "if" "(" expression ")" statement "else" statement
     /// ```
-    fn parse_if_statement(&mut self) -> SloxResult<ast::StmtNode> {
+    fn parse_if_statement(&mut self) -> SloxResult<StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'if'")?;
         let expression = self.parse_expression()?;
         self.consume(
@@ -312,7 +312,7 @@ impl Parser {
             Some(_) => Some(Box::new(self.parse_statement()?)),
             None => None,
         };
-        Ok(ast::StmtNode::If {
+        Ok(StmtNode::If {
             condition: expression,
             then_branch,
             else_branch,
@@ -324,7 +324,7 @@ impl Parser {
     /// labelled_loop := "@" IDENTIFIER while_statement
     /// labelled_loop := "@" IDENTIFIER for_statement
     /// ```
-    fn parse_labelled_loop(&mut self) -> SloxResult<ast::StmtNode> {
+    fn parse_labelled_loop(&mut self) -> SloxResult<StmtNode> {
         let name_token = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
             _ => return self.error("identifier expected after '@'"),
@@ -343,7 +343,7 @@ impl Parser {
     /// ```
     /// while_statement := "while" "(" expression ")" statement
     /// ```
-    fn parse_while_statement(&mut self, label: Option<Token>) -> SloxResult<ast::StmtNode> {
+    fn parse_while_statement(&mut self, label: Option<Token>) -> SloxResult<StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'while'")?;
         let condition = self.parse_expression()?;
         self.consume(
@@ -356,7 +356,7 @@ impl Parser {
             self.loop_state.pop();
             result?
         });
-        Ok(ast::StmtNode::Loop {
+        Ok(StmtNode::Loop {
             label,
             condition,
             body,
@@ -371,7 +371,7 @@ impl Parser {
     /// for_initializer := expression
     /// for_initializer :=
     /// ```
-    fn parse_for_statement(&mut self, label: Option<Token>) -> SloxResult<ast::StmtNode> {
+    fn parse_for_statement(&mut self, label: Option<Token>) -> SloxResult<StmtNode> {
         self.consume(&TokenType::LeftParen, "expected '(' after 'for'")?;
 
         let initializer = if self.expect(&[TokenType::Semicolon]).is_some() {
@@ -383,7 +383,7 @@ impl Parser {
         };
 
         let condition = if self.check(&TokenType::Semicolon) {
-            ast::ExprNode::Litteral {
+            ExprNode::Litteral {
                 value: Token {
                     token_type: TokenType::True,
                     lexeme: String::from("true"),
@@ -416,14 +416,14 @@ impl Parser {
             self.loop_state.pop();
             result?
         };
-        let while_stmt = ast::StmtNode::Loop {
+        let while_stmt = StmtNode::Loop {
             label,
             condition,
             body: Box::new(body_stmt),
-            after_body: increment.map(|incr| Box::new(ast::StmtNode::Expression(incr))),
+            after_body: increment.map(|incr| Box::new(StmtNode::Expression(incr))),
         };
         if let Some(init_stmt) = initializer {
-            Ok(ast::StmtNode::Block(vec![init_stmt, while_stmt]))
+            Ok(StmtNode::Block(vec![init_stmt, while_stmt]))
         } else {
             Ok(while_stmt)
         }
@@ -434,7 +434,7 @@ impl Parser {
     /// loop_control_statement := "break" ( IDENTIFIER )? ";"
     /// loop_control_statement := "continue" ( IDENTIFIER )? ";"
     /// ```
-    fn parse_loop_control_statement(&mut self, stmt_token: &Token) -> SloxResult<ast::StmtNode> {
+    fn parse_loop_control_statement(&mut self, stmt_token: &Token) -> SloxResult<StmtNode> {
         if self.loop_state() == &LoopParsingState::None {
             return Err(SloxError::with_token(
                 ErrorKind::Parse,
@@ -465,7 +465,7 @@ impl Parser {
             &TokenType::Semicolon,
             "';' expected after loop control statement",
         )?;
-        Ok(ast::StmtNode::LoopControl {
+        Ok(StmtNode::LoopControl {
             is_break: stmt_token.token_type == TokenType::Break,
             loop_name,
         })
@@ -475,7 +475,7 @@ impl Parser {
     /// ```
     /// return_statement := "return" expression? ";"
     /// ```
-    fn parse_return_statement(&mut self, ret_token: &Token) -> SloxResult<ast::StmtNode> {
+    fn parse_return_statement(&mut self, ret_token: &Token) -> SloxResult<StmtNode> {
         if self.can_use_return() {
             let value = if self.check(&TokenType::Semicolon) {
                 None
@@ -483,7 +483,7 @@ impl Parser {
                 Some(self.parse_expression()?)
             };
             self.consume(&TokenType::Semicolon, "';' expected after return statement")?;
-            Ok(ast::StmtNode::Return {
+            Ok(StmtNode::Return {
                 token: ret_token.clone(),
                 value,
             })
@@ -500,7 +500,7 @@ impl Parser {
     /// ```
     /// expression := assignment
     /// ```
-    fn parse_expression(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_expression(&mut self) -> SloxResult<ExprNode> {
         self.parse_assignment()
     }
 
@@ -509,12 +509,12 @@ impl Parser {
     /// assignment := IDENTIFIER "=" equality
     /// assignment := equality
     /// ```
-    fn parse_assignment(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_assignment(&mut self) -> SloxResult<ExprNode> {
         let expr = self.parse_logic_or()?;
         if let Some(equals) = self.expect(&[TokenType::Equal]) {
             let value = self.parse_assignment()?;
-            if let ast::ExprNode::Variable { name, id: _ } = expr {
-                Ok(ast::ExprNode::Assignment {
+            if let ExprNode::Variable { name, id: _ } = expr {
+                Ok(ExprNode::Assignment {
                     name,
                     value: Box::new(value),
                     id: self.make_id(),
@@ -535,11 +535,11 @@ impl Parser {
     /// ```
     /// logic_or := logic_and ( "or" logic_and )*
     /// ```
-    fn parse_logic_or(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_logic_or(&mut self) -> SloxResult<ExprNode> {
         let mut expr = self.parse_logic_and()?;
         while let Some(operator) = self.expect(&[TokenType::Or]) {
             let right = self.parse_logic_and()?;
-            expr = ast::ExprNode::Logical {
+            expr = ExprNode::Logical {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
@@ -552,11 +552,11 @@ impl Parser {
     /// ```
     /// logic_and := equality ( "and" equality )*
     /// ```
-    fn parse_logic_and(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_logic_and(&mut self) -> SloxResult<ExprNode> {
         let mut expr = self.parse_equality()?;
         while let Some(operator) = self.expect(&[TokenType::And]) {
             let right = self.parse_equality()?;
-            expr = ast::ExprNode::Logical {
+            expr = ExprNode::Logical {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
@@ -570,11 +570,11 @@ impl Parser {
     /// equality := comparison "==" comparison
     /// equality := comparison "!=" comparison
     /// ```
-    fn parse_equality(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_equality(&mut self) -> SloxResult<ExprNode> {
         let mut expr = self.parse_comparison()?;
         while let Some(operator) = self.expect(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let right = self.parse_comparison()?;
-            expr = ast::ExprNode::Binary {
+            expr = ExprNode::Binary {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
@@ -588,7 +588,7 @@ impl Parser {
     /// comparison          := term comparison_operator term
     /// comparison_operator := "<" | "<=" | ">" | ">="
     /// ```
-    fn parse_comparison(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_comparison(&mut self) -> SloxResult<ExprNode> {
         let mut expr = self.parse_term()?;
         while let Some(operator) = self.expect(&[
             TokenType::Greater,
@@ -597,7 +597,7 @@ impl Parser {
             TokenType::LessEqual,
         ]) {
             let right = self.parse_term()?;
-            expr = ast::ExprNode::Binary {
+            expr = ExprNode::Binary {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
@@ -611,11 +611,11 @@ impl Parser {
     /// term := factor ( "+" factor )*
     /// term := factor ( "-" factor )*
     /// ```
-    fn parse_term(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_term(&mut self) -> SloxResult<ExprNode> {
         let mut expr = self.parse_factor()?;
         while let Some(operator) = self.expect(&[TokenType::Minus, TokenType::Plus]) {
             let right = self.parse_factor()?;
-            expr = ast::ExprNode::Binary {
+            expr = ExprNode::Binary {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
@@ -629,11 +629,11 @@ impl Parser {
     /// factor := unary ( "*" unary )*
     /// factor := unary ( "/" unary )*
     /// ```
-    fn parse_factor(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_factor(&mut self) -> SloxResult<ExprNode> {
         let mut expr = self.parse_unary()?;
         while let Some(operator) = self.expect(&[TokenType::Slash, TokenType::Star]) {
             let right = self.parse_unary()?;
-            expr = ast::ExprNode::Binary {
+            expr = ExprNode::Binary {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
@@ -648,9 +648,9 @@ impl Parser {
     /// unary := "!" unary
     /// unary := primary call_arguments*
     /// ```
-    fn parse_unary(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_unary(&mut self) -> SloxResult<ExprNode> {
         if let Some(operator) = self.expect(&[TokenType::Bang, TokenType::Minus]) {
-            Ok(ast::ExprNode::Unary {
+            Ok(ExprNode::Unary {
                 operator,
                 right: Box::new(self.parse_unary()?),
             })
@@ -670,26 +670,26 @@ impl Parser {
     /// primary := IDENTIFIER
     /// primary := "fun" function_info
     /// ```
-    fn parse_primary(&mut self) -> SloxResult<ast::ExprNode> {
+    fn parse_primary(&mut self) -> SloxResult<ExprNode> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
             let expr = self.parse_expression()?;
             self.consume(&TokenType::RightParen, "expected ')' after expression")?;
-            Ok(ast::ExprNode::Grouping {
+            Ok(ExprNode::Grouping {
                 expression: Box::new(expr),
             })
         } else if self.expect(&[TokenType::Fun]).is_some() {
             let (params, body) = self.parse_function_info(FunctionKind::Lambda)?;
-            Ok(ast::ExprNode::Lambda { params, body })
+            Ok(ExprNode::Lambda { params, body })
         } else if let Some(token) =
             self.expect(&[TokenType::False, TokenType::True, TokenType::Nil])
         {
-            Ok(ast::ExprNode::Litteral { value: token })
+            Ok(ExprNode::Litteral { value: token })
         } else {
             match &self.peek().token_type {
-                TokenType::Number(_) | &TokenType::String(_) => Ok(ast::ExprNode::Litteral {
+                TokenType::Number(_) | &TokenType::String(_) => Ok(ExprNode::Litteral {
                     value: self.advance().clone(),
                 }),
-                TokenType::Identifier(_) => Ok(ast::ExprNode::Variable {
+                TokenType::Identifier(_) => Ok(ExprNode::Variable {
                     name: self.advance().clone(),
                     id: self.make_id(),
                 }),
@@ -703,7 +703,7 @@ impl Parser {
     /// call      := expression "(" arguments? ")"
     /// arguments := expression ( "," expression )*
     /// ```
-    fn parse_call_arguments(&mut self, callee: ast::ExprNode) -> Result<ast::ExprNode, SloxError> {
+    fn parse_call_arguments(&mut self, callee: ExprNode) -> Result<ExprNode, SloxError> {
         let mut arguments = Vec::new();
         if !self.check(&TokenType::RightParen) {
             loop {
@@ -719,7 +719,7 @@ impl Parser {
         let right_paren = self
             .consume(&TokenType::RightParen, "')' expected after arguments")?
             .clone();
-        Ok(ast::ExprNode::Call {
+        Ok(ExprNode::Call {
             callee: Box::new(callee),
             right_paren,
             arguments,

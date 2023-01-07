@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    ast,
+    ast::{ExprNode, FunDecl, ProgramNode, StmtNode},
     errors::{ErrorKind, SloxError, SloxResult},
     interpreter::{functions::Function, Environment, EnvironmentRef, Value},
     resolver::ResolvedVariables,
@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Evaluate an interpretable, returning its value.
-pub fn evaluate(ast: &ast::ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
+pub fn evaluate(ast: &ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
     let mut state = InterpreterState::new(&vars);
     ast.interpret(&mut state).map(|v| v.result())
 }
@@ -127,7 +127,7 @@ fn error<T>(token: &Token, message: &str) -> SloxResult<T> {
  * INTERPRETER FOR PROGRAM NODES *
  * ----------------------------- */
 
-impl Interpretable for ast::ProgramNode {
+impl Interpretable for ProgramNode {
     fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
         for stmt in self.0.iter() {
             stmt.interpret(es)?;
@@ -140,39 +140,37 @@ impl Interpretable for ast::ProgramNode {
  * INTERPRETER FOR STATEMENT NODES *
  * ------------------------------- */
 
-impl Interpretable for ast::StmtNode {
+impl Interpretable for StmtNode {
     fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
         match self {
-            ast::StmtNode::VarDecl(name, expr) => self.on_var_decl(es, name, expr),
-            ast::StmtNode::FunDecl { name, params, body } => {
-                self.on_fun_decl(es, name, params, body)
-            }
-            ast::StmtNode::Expression(expr) => expr.interpret(es),
-            ast::StmtNode::Print(expr) => self.on_print(es, expr),
-            ast::StmtNode::Block(statements) => self.on_block(es, statements),
-            ast::StmtNode::If {
+            StmtNode::VarDecl(name, expr) => self.on_var_decl(es, name, expr),
+            StmtNode::FunDecl(decl) => self.on_fun_decl(es, decl),
+            StmtNode::Expression(expr) => expr.interpret(es),
+            StmtNode::Print(expr) => self.on_print(es, expr),
+            StmtNode::Block(statements) => self.on_block(es, statements),
+            StmtNode::If {
                 condition,
                 then_branch,
                 else_branch,
             } => self.on_if_statement(es, condition, then_branch, else_branch),
-            ast::StmtNode::Loop {
+            StmtNode::Loop {
                 label,
                 condition,
                 body,
                 after_body,
             } => self.on_loop_statement(es, label, condition, body, after_body),
-            ast::StmtNode::LoopControl {
+            StmtNode::LoopControl {
                 is_break,
                 loop_name,
             } => self.on_loop_control_statemement(*is_break, loop_name),
-            ast::StmtNode::Return { token: _, value } => self.on_return_statement(es, value),
+            StmtNode::Return { token: _, value } => self.on_return_statement(es, value),
         }
     }
 }
 
-impl ast::StmtNode {
+impl StmtNode {
     /// Handle the `print` statement.
-    fn on_print(&self, es: &mut InterpreterState, expr: &ast::ExprNode) -> InterpreterResult {
+    fn on_print(&self, es: &mut InterpreterState, expr: &ExprNode) -> InterpreterResult {
         let value = expr.interpret(es)?.result();
         let output = match value {
             Value::Nil => String::from("nil"),
@@ -191,7 +189,7 @@ impl ast::StmtNode {
         &self,
         es: &mut InterpreterState,
         name: &Token,
-        initializer: &Option<ast::ExprNode>,
+        initializer: &Option<ExprNode>,
     ) -> InterpreterResult {
         let variable = match initializer {
             Some(expr) => Some(expr.interpret(es)?.result()),
@@ -202,22 +200,21 @@ impl ast::StmtNode {
     }
 
     /// Handle a function declaration.
-    fn on_fun_decl(
-        &self,
-        es: &mut InterpreterState,
-        name: &Token,
-        params: &[Token],
-        body: &[ast::StmtNode],
-    ) -> InterpreterResult {
-        let fun = Function::new(Some(name), params, body, es.environment.clone());
+    fn on_fun_decl(&self, es: &mut InterpreterState, decl: &FunDecl) -> InterpreterResult {
+        let fun = Function::new(
+            Some(&decl.name),
+            &decl.params,
+            &decl.body,
+            es.environment.clone(),
+        );
         es.environment
             .borrow_mut()
-            .define(name, Some(Value::Callable(fun)))?;
+            .define(&decl.name, Some(Value::Callable(fun)))?;
         Ok(InterpreterFlowControl::default())
     }
 
     /// Execute the contents of a block.
-    fn on_block(&self, es: &mut InterpreterState, stmts: &[ast::StmtNode]) -> InterpreterResult {
+    fn on_block(&self, es: &mut InterpreterState, stmts: &[StmtNode]) -> InterpreterResult {
         let mut child = InterpreterState::create_child(es);
         for stmt in stmts.iter() {
             let result = stmt.interpret(&mut child)?;
@@ -232,9 +229,9 @@ impl ast::StmtNode {
     fn on_if_statement(
         &self,
         es: &mut InterpreterState,
-        condition: &ast::ExprNode,
-        then_branch: &ast::StmtNode,
-        else_branch: &Option<Box<ast::StmtNode>>,
+        condition: &ExprNode,
+        then_branch: &StmtNode,
+        else_branch: &Option<Box<StmtNode>>,
     ) -> InterpreterResult {
         if condition.interpret(es)?.result().is_truthy() {
             then_branch.interpret(es)
@@ -250,9 +247,9 @@ impl ast::StmtNode {
         &self,
         es: &mut InterpreterState,
         label: &Option<Token>,
-        condition: &ast::ExprNode,
-        body: &ast::StmtNode,
-        after_body: &Option<Box<ast::StmtNode>>,
+        condition: &ExprNode,
+        body: &StmtNode,
+        after_body: &Option<Box<StmtNode>>,
     ) -> InterpreterResult {
         let ln = label.as_ref().map(|token| token.lexeme.clone());
         while condition.interpret(es)?.result().is_truthy() {
@@ -294,7 +291,7 @@ impl ast::StmtNode {
     fn on_return_statement(
         &self,
         es: &mut InterpreterState,
-        value: &Option<ast::ExprNode>,
+        value: &Option<ExprNode>,
     ) -> InterpreterResult {
         let rv = match value {
             None => Value::Nil,
@@ -308,48 +305,51 @@ impl ast::StmtNode {
  * INTERPRETER FOR EXPRESSION NODES *
  * -------------------------------- */
 
-impl Interpretable for ast::ExprNode {
+impl Interpretable for ExprNode {
     fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
         match self {
-            ast::ExprNode::Assignment { name, value, id } => {
+            ExprNode::Assignment { name, value, id } => {
                 let value = value.interpret(es)?.result();
                 es.assign_var(name, id, value)?;
                 Ok(InterpreterFlowControl::default())
             }
-            ast::ExprNode::Logical {
+            ExprNode::Logical {
                 left,
                 operator,
                 right,
             } => self.on_logic(es, left, operator, right),
-            ast::ExprNode::Binary {
+            ExprNode::Binary {
                 left,
                 operator,
                 right,
             } => self.on_binary(es, left, operator, right),
-            ast::ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
-            ast::ExprNode::Grouping { expression } => expression.interpret(es),
-            ast::ExprNode::Litteral { value } => self.on_litteral(value),
-            ast::ExprNode::Variable { name, id } => Ok(es.lookup_var(name, id)?.into()),
-            ast::ExprNode::Call {
+            ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
+            ExprNode::Grouping { expression } => expression.interpret(es),
+            ExprNode::Litteral { value } => self.on_litteral(value),
+            ExprNode::Variable { name, id } => Ok(es.lookup_var(name, id)?.into()),
+            ExprNode::Call {
                 callee,
                 right_paren,
                 arguments,
             } => self.on_call(es, callee, right_paren, arguments),
-            ast::ExprNode::Lambda { params, body } => {
-                Ok(Value::Callable(Function::new(None, params, body, es.environment.clone())).into())
+            ExprNode::Lambda { params, body } => {
+                Ok(
+                    Value::Callable(Function::new(None, params, body, es.environment.clone()))
+                        .into(),
+                )
             }
         }
     }
 }
 
-impl ast::ExprNode {
+impl ExprNode {
     /// Evaluate a logical operator.
     fn on_logic(
         &self,
         es: &mut InterpreterState,
-        left: &ast::ExprNode,
+        left: &ExprNode,
         operator: &Token,
-        right: &ast::ExprNode,
+        right: &ExprNode,
     ) -> InterpreterResult {
         let left_value = left.interpret(es)?.result();
         if operator.token_type == TokenType::Or && left_value.is_truthy()
@@ -365,9 +365,9 @@ impl ast::ExprNode {
     fn on_binary(
         &self,
         es: &mut InterpreterState,
-        left: &ast::ExprNode,
+        left: &ExprNode,
         operator: &Token,
-        right: &ast::ExprNode,
+        right: &ExprNode,
     ) -> InterpreterResult {
         let left_value = left.interpret(es)?.result();
         let right_value = right.interpret(es)?.result();
@@ -437,7 +437,7 @@ impl ast::ExprNode {
         &self,
         es: &mut InterpreterState,
         operator: &Token,
-        right: &ast::ExprNode,
+        right: &ExprNode,
     ) -> InterpreterResult {
         let right_value = right.interpret(es)?.result();
         match operator.token_type {
@@ -475,9 +475,9 @@ impl ast::ExprNode {
     fn on_call(
         &self,
         es: &mut InterpreterState,
-        callee: &ast::ExprNode,
+        callee: &ExprNode,
         right_paren: &Token,
-        arguments: &Vec<ast::ExprNode>,
+        arguments: &Vec<ExprNode>,
     ) -> InterpreterResult {
         let callee = callee.interpret(es)?.result();
         let arg_values = {
