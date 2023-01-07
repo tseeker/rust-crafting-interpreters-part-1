@@ -106,53 +106,61 @@ impl ResolverState {
         }
     }
 
-    /// Try to resolve some access to a symbol. If a local symbol is found
-    /// matching the specified name, add it to the resolution map.
-    fn resolve_local(
-        &mut self,
-        expr_id: &usize,
-        name: &Token,
-        from_assignment: bool,
-    ) -> ResolverResult {
+    /// Resolve a symbol when it is being used. If the symbol is local,
+    /// the lookup distance will be stored to the resolution map.
+    fn resolve_use(&mut self, expr_id: &usize, name: &Token) -> ResolverResult {
         let mut i = self.scopes.len();
         while i != 0 {
             i -= 1;
             if let Some(info) = self.scopes[i].get_mut(&name.lexeme as &str) {
-                if from_assignment {
-                    if info.kind != SymKind::Variable {
-                        return Err(SloxError::with_token(
-                            ErrorKind::Parse,
-                            name,
-                            "cannot assign to this symbol".to_owned(),
-                        ));
-                    }
-                    if info.state == SymState::Declared {
-                        info.state = SymState::Defined;
-                    }
-                } else {
-                    if info.state == SymState::Declared {
-                        return Err(SloxError::with_token(
-                            ErrorKind::Parse,
-                            name,
-                            "symbol accessed before definition".to_owned(),
-                        ));
-                    }
-                    info.state = SymState::Used;
+                if info.state == SymState::Declared {
+                    return Err(SloxError::with_token(
+                        ErrorKind::Parse,
+                        name,
+                        "symbol accessed before definition".to_owned(),
+                    ));
                 }
-                // Only mark symbols as locals if we're not at the top-level
-                // scope.
-                if i != 0 {
-                    self.mark_resolved(expr_id, self.scopes.len() - 1 - i);
-                }
+                info.state = SymState::Used;
+                self.mark_resolved(expr_id, i);
                 return Ok(());
             }
         }
+        // XXX not found !
+        Ok(())
+    }
+
+    /// Resolve a symbol when it is being assigned to. If the symbol is local,
+    /// the lookup distance will be stored to the resolution map. Trying to
+    /// assign to something that isn't a variable will cause an error.
+    fn resolve_assignment(&mut self, expr_id: &usize, name: &Token) -> ResolverResult {
+        let mut i = self.scopes.len();
+        while i != 0 {
+            i -= 1;
+            if let Some(info) = self.scopes[i].get_mut(&name.lexeme as &str) {
+                if info.kind != SymKind::Variable {
+                    return Err(SloxError::with_token(
+                        ErrorKind::Parse,
+                        name,
+                        "cannot assign to this symbol".to_owned(),
+                    ));
+                }
+                if info.state == SymState::Declared {
+                    info.state = SymState::Defined;
+                }
+                self.mark_resolved(expr_id, i);
+                return Ok(());
+            }
+        }
+        // XXX not found !
         Ok(())
     }
 
     /// Add an entry to the resolution map for an AST node.
     fn mark_resolved(&mut self, expr_id: &usize, depth: usize) {
-        self.resolved.insert(*expr_id, depth);
+        // Only mark symbols as locals if we're not at the top-level scope.
+        if depth != 0 {
+            self.resolved.insert(*expr_id, self.scopes.len() - 1 - depth);
+        }
     }
 }
 
@@ -266,11 +274,11 @@ impl VarResolver for ast::StmtNode {
 impl VarResolver for ast::ExprNode {
     fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
         match self {
-            ast::ExprNode::Variable { name, id } => rs.resolve_local(id, name, false),
+            ast::ExprNode::Variable { name, id } => rs.resolve_use(id, name),
 
             ast::ExprNode::Assignment { name, value, id } => {
                 value.resolve(rs)?;
-                rs.resolve_local(id, name, true)
+                rs.resolve_assignment(id, name)
             }
 
             ast::ExprNode::Lambda { params, body } => {
