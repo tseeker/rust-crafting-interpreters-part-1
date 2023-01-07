@@ -70,26 +70,27 @@ impl ResolverState {
     /// Try to declare a symbol. If the scope already contains a declaration
     /// for the same name, return an error.
     fn declare(&mut self, name: &Token, kind: SymKind) -> ResolverResult {
-        if !self.scopes.is_empty() {
-            let idx = self.scopes.len() - 1;
-            let scope = &mut self.scopes[idx];
-            if scope.contains_key(&name.lexeme as &str) {
-                return Err(SloxError::with_token(
-                    ErrorKind::Parse,
-                    name,
-                    "already a symbol with this name in this scope".to_owned(),
-                ));
-            } else {
-                scope.insert(
-                    name.lexeme.clone(),
-                    SymInfo {
-                        kind,
-                        state: SymState::Declared,
-                    },
-                );
-            }
+        if self.scopes.is_empty() {
+            return Ok(());
         }
-        Ok(())
+        let idx = self.scopes.len() - 1;
+        let scope = &mut self.scopes[idx];
+        if scope.contains_key(&name.lexeme as &str) {
+            Err(SloxError::with_token(
+                ErrorKind::Parse,
+                name,
+                "already a symbol with this name in this scope".to_owned(),
+            ))
+        } else {
+            scope.insert(
+                name.lexeme.clone(),
+                SymInfo {
+                    kind,
+                    state: SymState::Declared,
+                },
+            );
+            Ok(())
+        }
     }
 
     /// Mark a symbol as defined. If the symbol has already been defined or
