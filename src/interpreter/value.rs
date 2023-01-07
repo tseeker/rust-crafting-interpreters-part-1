@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
-use super::Callable;
+use super::{Callable, class::Class};
 
 /// A value being handled by the interpreter.
 #[derive(Debug, Clone)]
@@ -10,6 +10,7 @@ pub enum Value {
     String(String),
     Number(f64),
     Callable(Rc<RefCell<dyn Callable>>),
+    Class(Class),
 }
 
 impl PartialEq for Value {
@@ -32,6 +33,7 @@ impl Display for Value {
             Value::String(s) => s.fmt(f),
             Value::Number(n) => n.fmt(f),
             Value::Callable(c) => f.write_str(&c.borrow().to_string()),
+            Value::Class(c) => f.write_str(&c.to_string()),
         }
     }
 }
