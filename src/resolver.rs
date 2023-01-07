@@ -37,6 +37,7 @@ enum SymState {
 enum SymKind {
     Variable,
     Function,
+    Class,
 }
 
 /// General information about a symbol.
@@ -259,6 +260,12 @@ impl VarResolver for StmtNode {
                 rs.declare(&decl.name, SymKind::Function)?;
                 rs.define(&decl.name);
                 rs.with_scope(|rs| resolve_function(rs, &decl.params, &decl.body))
+            }
+
+            StmtNode::ClassDecl(decl) => {
+                rs.declare(&decl.name, SymKind::Class)?;
+                rs.define(&decl.name);
+                Ok(())
             }
 
             StmtNode::If {
