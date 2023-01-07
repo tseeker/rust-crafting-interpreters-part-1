@@ -82,21 +82,11 @@ impl Environment {
     }
 
     /// Access a variable at a specified distance in a parent environment.
-    pub fn get_at(&self, distance: usize, name: &Token) -> Value {
-        self.ancestor(distance)
-            .values
-            .get(&name.lexeme as &str)
-            .unwrap()
-            .unwrap()
-            .clone()
-    }
-
-    /// Access the ancestor environment at a specified distance from the current one.
-    fn ancestor(&self, distance: usize) -> &Self {
+    pub fn get_at(&self, distance: usize, name: &Token) -> SloxResult<Value> {
         if distance == 0 {
-            &self
+            self.get(name)
         } else {
-            self.enclosing.unwrap().borrow().ancestor(distance - 1)
+            self.ancestor(distance).borrow().get(name)
         }
     }
 
@@ -115,5 +105,28 @@ impl Environment {
                 Some(parent) => parent.borrow_mut().assign(name, value),
             }
         }
+    }
+
+    /// Set a variable at a specified distance in a parent environment.
+    pub fn assign_at(&mut self, distance: usize, name: &Token, value: Value) -> SloxResult<()> {
+        if distance == 0 {
+            self.assign(name, value)
+        } else {
+            self.ancestor(distance).borrow_mut().assign(name, value)
+        }
+    }
+
+    /// Read an ancestor from the chain of enclosing environments.
+    fn ancestor(&self, distance: usize) -> EnvironmentRef {
+        let mut ancestor = self.enclosing.clone().expect("ancestor() called at root");
+        for _ in 1..distance {
+            let ap = ancestor
+                .borrow()
+                .enclosing
+                .clone()
+                .expect("ancestor() called with too high a distance");
+            ancestor = ap;
+        }
+        ancestor
     }
 }

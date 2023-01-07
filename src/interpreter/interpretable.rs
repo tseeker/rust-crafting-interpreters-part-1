@@ -49,10 +49,20 @@ impl<'a> InterpreterState<'a> {
         }
     }
 
-    fn lookup_var(&self, name: &Token, expr : &ast::ExprNode) -> SloxResult<Value> {
+    fn lookup_var(&self, name: &Token, expr: &ast::ExprNode) -> SloxResult<Value> {
         match self.variables.get(&(expr as *const ast::ExprNode)) {
-            Some(distance) => Ok(self.environment.borrow().get_at(*distance, name)),
-            None => self.environment.borrow().get(name),
+            Some(distance) => self.environment.borrow().get_at(*distance, name),
+            None => self.globals.borrow().get(name),
+        }
+    }
+
+    fn assign_var(&self, name: &Token, expr: &ast::ExprNode, value: Value) -> SloxResult<()> {
+        match self.variables.get(&(expr as *const ast::ExprNode)) {
+            Some(distance) => self
+                .environment
+                .borrow_mut()
+                .assign_at(*distance, name, value),
+            None => self.globals.borrow_mut().assign(name, value),
         }
     }
 }
@@ -303,7 +313,7 @@ impl Interpretable for ast::ExprNode {
         match self {
             ast::ExprNode::Assignment { name, value } => {
                 let value = value.interpret(es)?.result();
-                es.environment.borrow_mut().assign(name, value)?;
+                es.assign_var(name, &self, value)?;
                 Ok(InterpreterFlowControl::default())
             }
             ast::ExprNode::Logical {
@@ -319,7 +329,7 @@ impl Interpretable for ast::ExprNode {
             ast::ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
             ast::ExprNode::Grouping { expression } => expression.interpret(es),
             ast::ExprNode::Litteral { value } => self.on_litteral(value),
-            ast::ExprNode::Variable { name } => Ok(es.environment.borrow().get(name)?.into()),
+            ast::ExprNode::Variable { name } => Ok(es.lookup_var(name, &self)?.into()),
             ast::ExprNode::Call {
                 callee,
                 right_paren,
