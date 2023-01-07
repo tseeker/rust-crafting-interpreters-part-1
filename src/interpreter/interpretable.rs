@@ -38,7 +38,7 @@ impl<'a> InterpreterState<'a> {
     }
 
     /// Create a child state.
-    fn create_child<'b>(parent: &InterpreterState<'b>) -> Self
+    pub(super) fn create_child<'b>(parent: &InterpreterState<'b>) -> Self
     where
         'b: 'a,
     {
@@ -209,7 +209,7 @@ impl ast::StmtNode {
         params: &[Token],
         body: &[ast::StmtNode],
     ) -> InterpreterResult {
-        let fun = Function::new(Some(name), params, body);
+        let fun = Function::new(Some(name), params, body, es.environment.clone());
         es.environment
             .borrow_mut()
             .define(name, Some(Value::Callable(fun)))?;
@@ -336,7 +336,7 @@ impl Interpretable for ast::ExprNode {
                 arguments,
             } => self.on_call(es, callee, right_paren, arguments),
             ast::ExprNode::Lambda { params, body } => {
-                Ok(Value::Callable(Function::new(None, params, body)).into())
+                Ok(Value::Callable(Function::new(None, params, body, es.environment.clone())).into())
             }
         }
     }

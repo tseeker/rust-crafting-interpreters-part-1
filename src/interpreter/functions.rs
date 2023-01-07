@@ -3,28 +3,32 @@ use std::{cell::RefCell, rc::Rc};
 use itertools::izip;
 
 use super::{
-    Callable, Environment, Interpretable, InterpreterFlowControl, InterpreterState, Value,
+    Callable, Environment, EnvironmentRef, Interpretable, InterpreterFlowControl, InterpreterState,
+    Value,
 };
 use crate::{ast, errors::SloxResult, tokens::Token};
 
 /// A function implemented in the Lox-ish language.
 #[derive(Debug)]
-pub(crate) struct Function {
+pub(super) struct Function {
     name: Option<Token>,
     params: Vec<Token>,
     body: Vec<ast::StmtNode>,
+    env: EnvironmentRef,
 }
 
 impl Function {
-    pub(crate) fn new(
+    pub(super) fn new(
         name: Option<&Token>,
         params: &[Token],
         body: &[ast::StmtNode],
+        environment: EnvironmentRef,
     ) -> Rc<RefCell<Self>> {
         let fun = Self {
             name: name.cloned(),
             params: params.to_owned(),
             body: body.to_owned(),
+            env: environment,
         };
         Rc::new(RefCell::new(fun))
     }
@@ -38,7 +42,7 @@ impl Callable for Function {
     fn call(&self, es: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value> {
         assert_eq!(arguments.len(), self.arity());
         let param_env = InterpreterState {
-            environment: Environment::create_child(&es.environment),
+            environment: Environment::create_child(&self.env),
             globals: es.globals.clone(),
             variables: es.variables,
         };
@@ -50,11 +54,7 @@ impl Callable for Function {
                 .unwrap();
         }
 
-        let mut child = InterpreterState {
-            environment: Environment::create_child(&param_env.environment),
-            globals: es.globals.clone(),
-            variables: es.variables,
-        };
+        let mut child = InterpreterState::create_child(&param_env);
         for stmt in self.body.iter() {
             let result = stmt.interpret(&mut child)?;
             match result {
