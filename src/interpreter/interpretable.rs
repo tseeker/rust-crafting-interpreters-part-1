@@ -172,14 +172,7 @@ impl StmtNode {
     /// Handle the `print` statement.
     fn on_print(&self, es: &mut InterpreterState, expr: &ExprNode) -> InterpreterResult {
         let value = expr.interpret(es)?.result();
-        let output = match value {
-            Value::Nil => String::from("nil"),
-            Value::Boolean(true) => String::from("true"),
-            Value::Boolean(false) => String::from("false"),
-            Value::Number(n) => n.to_string(),
-            Value::String(s) => s,
-            Value::Callable(c) => c.borrow().to_string(),
-        };
+        let output = value.to_string();
         println!("{}", output);
         Ok(InterpreterFlowControl::default())
     }
