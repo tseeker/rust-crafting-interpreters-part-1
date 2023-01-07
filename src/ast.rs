@@ -16,6 +16,13 @@ pub struct FunDecl {
     pub body: Vec<StmtNode>,
 }
 
+/// A class declaration.
+#[derive(Debug, Clone)]
+pub struct ClassDecl {
+    pub name: Token,
+    pub methods: Vec<FunDecl>,
+}
+
 /// An AST node that represents a statement.
 #[derive(Debug, Clone)]
 pub enum StmtNode {
@@ -23,6 +30,8 @@ pub enum StmtNode {
     VarDecl(Token, Option<ExprNode>),
     /// A function declaration
     FunDecl(FunDecl),
+    /// A class declaration
+    ClassDecl(ClassDecl),
     /// An single expression
     Expression(ExprNode),
     /// The print statement
@@ -147,24 +156,42 @@ impl AstDumper for ProgramNode {
     }
 }
 
+/// Function formatting macro.
+macro_rules! fmt_fun_decl {
+    ($fs:literal, $fd:expr) => {
+        format!(
+            $fs,
+            $fd.name.lexeme,
+            $fd.params
+                .iter()
+                .map(|token| &token.lexeme as &str)
+                .collect::<Vec<&str>>()
+                .join(" "),
+            $fd.body
+                .iter()
+                .map(|stmt| stmt.dump())
+                .collect::<Vec<String>>()
+                .join(" ")
+        )
+    };
+}
+
 impl AstDumper for StmtNode {
     fn dump(&self) -> String {
         match self {
             Self::VarDecl(name, Some(expr)) => format!("( var {} {} )", name.lexeme, expr.dump()),
             Self::VarDecl(name, None) => format!("( var {} nil )", name.lexeme),
 
-            Self::FunDecl(fun_decl) => format!(
-                "( fun {} ({}) {} )",
-                fun_decl.name.lexeme,
-                fun_decl.params
+            Self::FunDecl(fun_decl) => fmt_fun_decl!("( fun {} ({}) {} )", fun_decl),
+
+            Self::ClassDecl(decl) => format!(
+                "( class {} {} )",
+                decl.name.lexeme,
+                decl.methods
                     .iter()
-                    .map(|token| &token.lexeme as &str)
-                    .collect::<Vec<&str>>()
-                    .join(" "),
-                fun_decl.body.iter()
-                    .map(|stmt| stmt.dump())
+                    .map(|fun_decl| fmt_fun_decl!("( {} ({}) {} )", fun_decl))
                     .collect::<Vec<String>>()
-                    .join(" ")
+                    .join(" "),
             ),
 
             Self::Expression(expr) => expr.dump(),
@@ -240,7 +267,9 @@ impl AstDumper for StmtNode {
 impl AstDumper for ExprNode {
     fn dump(&self) -> String {
         match self {
-            Self::Assignment { name, value, id } => format!("{{#{}}}( = {} {} )", id, name.lexeme, value.dump()),
+            Self::Assignment { name, value, id } => {
+                format!("{{#{}}}( = {} {} )", id, name.lexeme, value.dump())
+            }
             Self::Logical {
                 left,
                 operator,
