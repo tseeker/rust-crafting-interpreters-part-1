@@ -40,8 +40,9 @@ enum SymKind {
 }
 
 /// General information about a symbol.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 struct SymInfo {
+    decl: Token,
     kind: SymKind,
     state: SymState,
 }
@@ -64,9 +65,25 @@ impl ResolverState {
         F: FnOnce(&mut Self) -> ResolverResult,
     {
         self.scopes.push(HashMap::new());
-        let result = f(self);
+        let result = f(self).and_then(|_| self.check_unused());
         self.scopes.pop();
         result
+    }
+
+    /// Check for unused symbols in the scope. If an unused symbol is found and
+    /// its name does not begin with an underscore, generate an error.
+    fn check_unused(&self) -> ResolverResult {
+        self.scopes[self.scopes.len() - 1]
+            .values()
+            .filter(|v| v.state != SymState::Used)
+            .filter(|v| !v.decl.lexeme.starts_with("_"))
+            .nth(0)
+            .map_or(Ok(()), |v| {
+                self.error(
+                    &v.decl,
+                    "unused symbol; prefix its name with '_' to avoid this error",
+                )
+            })
     }
 
     /// Try to declare a symbol. If the scope already contains a declaration
@@ -85,6 +102,7 @@ impl ResolverState {
             scope.insert(
                 name.lexeme.clone(),
                 SymInfo {
+                    decl: name.clone(),
                     kind,
                     state: SymState::Declared,
                 },
@@ -160,7 +178,7 @@ impl ResolverState {
     }
 
     /// Return an error.
-    fn error(&mut self, name: &Token, message: &str) -> ResolverResult {
+    fn error(&self, name: &Token, message: &str) -> ResolverResult {
         Err(SloxError::with_token(
             ErrorKind::Parse,
             name,
