@@ -41,23 +41,23 @@ enum SymKind {
 
 /// General information about a symbol.
 #[derive(Clone, Debug)]
-struct SymInfo {
-    decl: Token,
+struct SymInfo<'a> {
+    decl: &'a Token,
     kind: SymKind,
     state: SymState,
 }
 
 /// The state of the resolver.
 #[derive(Default)]
-struct ResolverState {
+struct ResolverState<'a> {
     /// The stack of scopes. Each scope maps symbols to information which
     /// includes the kind of symbol it is and its current state.
-    scopes: Vec<HashMap<String, SymInfo>>,
+    scopes: Vec<HashMap<String, SymInfo<'a>>>,
     /// The result of the resolver pass.
     resolved: ResolvedVariables,
 }
 
-impl ResolverState {
+impl<'a> ResolverState<'a> {
     /// Execute some function with a new scope. The scope will be disposed
     /// of after the function has been executed.
     fn with_scope<F>(&mut self, f: F) -> ResolverResult
@@ -88,7 +88,10 @@ impl ResolverState {
 
     /// Try to declare a symbol. If the scope already contains a declaration
     /// for the same name, return an error.
-    fn declare(&mut self, name: &Token, kind: SymKind) -> ResolverResult {
+    fn declare<'b>(&mut self, name: &'b Token, kind: SymKind) -> ResolverResult
+    where
+        'b: 'a,
+    {
         assert!(!self.scopes.is_empty());
         let idx = self.scopes.len() - 1;
         let scope = &mut self.scopes[idx];
@@ -102,7 +105,7 @@ impl ResolverState {
             scope.insert(
                 name.lexeme.clone(),
                 SymInfo {
-                    decl: name.clone(),
+                    decl: name,
                     kind,
                     state: SymState::Declared,
                 },
@@ -188,11 +191,14 @@ impl ResolverState {
 }
 
 /// Process a function declaration.
-fn resolve_function(
-    rs: &mut ResolverState,
-    params: &[Token],
-    body: &Vec<ast::StmtNode>,
-) -> ResolverResult {
+fn resolve_function<'a, 'b>(
+    rs: &mut ResolverState<'a>,
+    params: &'b [Token],
+    body: &'b Vec<ast::StmtNode>,
+) -> ResolverResult
+where
+    'b: 'a,
+{
     for param in params {
         rs.declare(param, SymKind::Variable)?;
         rs.define(param);
@@ -205,17 +211,25 @@ fn resolve_function(
 /// Helper trait used to visit the various AST nodes with the resolver.
 trait VarResolver {
     /// Try to resolve local variables under some AST node.
-    fn resolve(&self, rs: &mut ResolverState) -> ResolverResult;
+    fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
+    where
+        'a: 'b;
 }
 
 impl VarResolver for ast::ProgramNode {
-    fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
+    fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
+    where
+        'a: 'b,
+    {
         self.0.resolve(rs)
     }
 }
 
 impl VarResolver for Vec<ast::StmtNode> {
-    fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
+    fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
+    where
+        'a: 'b,
+    {
         for stmt in self.iter() {
             stmt.resolve(rs)?;
         }
@@ -224,7 +238,10 @@ impl VarResolver for Vec<ast::StmtNode> {
 }
 
 impl VarResolver for ast::StmtNode {
-    fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
+    fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
+    where
+        'a: 'b,
+    {
         match self {
             ast::StmtNode::Block(stmts) => rs.with_scope(|rs| stmts.resolve(rs)),
 
@@ -295,7 +312,10 @@ impl VarResolver for ast::StmtNode {
 }
 
 impl VarResolver for ast::ExprNode {
-    fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
+    fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
+    where
+        'a: 'b,
+    {
         match self {
             ast::ExprNode::Variable { name, id } => rs.resolve_use(id, name),
 
@@ -331,7 +351,10 @@ impl VarResolver for ast::ExprNode {
 }
 
 impl VarResolver for Vec<ast::ExprNode> {
-    fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
+    fn resolve<'a, 'b>(&'a self, rs: &mut ResolverState<'b>) -> ResolverResult
+    where
+        'a: 'b,
+    {
         for expr in self.iter() {
             expr.resolve(rs)?;
         }
