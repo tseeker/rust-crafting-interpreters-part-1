@@ -19,12 +19,37 @@ pub fn resolve_variables(program: &ast::ProgramNode) -> SloxResult<ResolvedVaria
 
 type ResolverResult = SloxResult<()>;
 
+/// The state of a symbol in a scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SymState {
+    /// The symbol has been declared but no value has been assigned to it.
+    Declared,
+    /// The symbol has been defined, but it hasn't been accessed.
+    Defined,
+    /// The symbol has been used.
+    Used,
+}
+
+/// The kind of a symbol.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SymKind {
+    Variable,
+    Function,
+}
+
+/// General information about a symbol.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SymInfo {
+    kind: SymKind,
+    state: SymState,
+}
+
 /// The state of the resolver.
 #[derive(Default)]
 struct ResolverState {
-    /// The stack of scopes. Each scope maps variable names to a flag that
-    /// indicates whether the variable has been defined or not.
-    scopes: Vec<HashMap<String, bool>>,
+    /// The stack of scopes. Each scope maps symbols to information which
+    /// includes the kind of symbol it is and its current state.
+    scopes: Vec<HashMap<String, SymInfo>>,
     /// The result of the resolver pass.
     resolved: ResolvedVariables,
 }
@@ -40,9 +65,9 @@ impl ResolverState {
         self.scopes.pop();
     }
 
-    /// Try to declare a variable. If the scope already contains a variable
-    /// declaration for the same name, return an error.
-    fn declare(&mut self, name: &Token) -> ResolverResult {
+    /// Try to declare a symbol. If the scope already contains a declaration
+    /// for the same name, return an error.
+    fn declare(&mut self, name: &Token, kind: SymKind) -> ResolverResult {
         if !self.scopes.is_empty() {
             let idx = self.scopes.len() - 1;
             let scope = &mut self.scopes[idx];
@@ -50,45 +75,73 @@ impl ResolverState {
                 return Err(SloxError::with_token(
                     ErrorKind::Parse,
                     name,
-                    "already a variable with this name in this scope".to_owned(),
+                    "already a symbol with this name in this scope".to_owned(),
                 ));
             } else {
-                scope.insert(name.lexeme.clone(), false);
+                scope.insert(
+                    name.lexeme.clone(),
+                    SymInfo {
+                        kind,
+                        state: SymState::Declared,
+                    },
+                );
             }
         }
-        return Ok(());
+        Ok(())
     }
 
-    /// Define a new variable.
+    /// Mark a symbol as defined. If the symbol has already been defined or
+    /// used, its state isn't affected.
     fn define(&mut self, name: &Token) {
         if !self.scopes.is_empty() {
             let idx = self.scopes.len() - 1;
             let top = &mut self.scopes[idx];
-            top.insert(name.lexeme.clone(), true);
+            if let Some(info) = top.get_mut(&name.lexeme as &str) {
+                if info.state == SymState::Declared {
+                    info.state = SymState::Defined;
+                }
+            }
         }
     }
 
-    /// Check for a variable in the current scope, if there is one.
-    fn check(&self, name: &str) -> Option<bool> {
-        if self.scopes.is_empty() {
-            None
-        } else {
-            let idx = self.scopes.len() - 1;
-            self.scopes[idx].get(name).cloned()
-        }
-    }
-
-    /// Try to resolve some access to a variable. If a local variable is found
+    /// Try to resolve some access to a symbol. If a local symbol is found
     /// matching the specified name, add it to the resolution map.
-    fn resolve_local(&mut self, expr_id: &usize, name: &Token) {
+    fn resolve_local(
+        &mut self,
+        expr_id: &usize,
+        name: &Token,
+        from_assignment: bool,
+    ) -> ResolverResult {
         let mut i = self.scopes.len();
         while i != 0 {
             i -= 1;
-            if self.scopes[i].contains_key(&name.lexeme as &str) {
+            if let Some(info) = self.scopes[i].get_mut(&name.lexeme as &str) {
+                if from_assignment {
+                    if info.kind != SymKind::Variable {
+                        return Err(SloxError::with_token(
+                            ErrorKind::Parse,
+                            name,
+                            "cannot assign to this symbol".to_owned(),
+                        ));
+                    }
+                    if info.state == SymState::Declared {
+                        info.state = SymState::Defined;
+                    }
+                } else {
+                    if info.state == SymState::Declared {
+                        return Err(SloxError::with_token(
+                            ErrorKind::Parse,
+                            name,
+                            "symbol accessed before definition".to_owned(),
+                        ));
+                    }
+                    info.state = SymState::Used;
+                }
                 self.mark_resolved(expr_id, self.scopes.len() - 1 - i);
-                return;
+                return Ok(());
             }
         }
+        Ok(())
     }
 
     /// Add an entry to the resolution map for an AST node.
@@ -105,7 +158,7 @@ fn resolve_function(
 ) -> ResolverResult {
     rs.begin_scope();
     for param in params {
-        rs.declare(param)?;
+        rs.declare(param, SymKind::Variable)?;
         rs.define(param);
     }
     // Unlike the original Lox, function arguments and function bodies do
@@ -149,19 +202,18 @@ impl VarResolver for ast::StmtNode {
             }
 
             ast::StmtNode::VarDecl(name, None) => {
-                rs.declare(name)?;
-                rs.define(name);
+                rs.declare(name, SymKind::Variable)?;
                 Ok(())
             }
             ast::StmtNode::VarDecl(name, Some(init)) => {
-                rs.declare(name)?;
+                rs.declare(name, SymKind::Variable)?;
                 init.resolve(rs)?;
                 rs.define(name);
                 Ok(())
             }
 
             ast::StmtNode::FunDecl { name, params, body } => {
-                rs.declare(name)?;
+                rs.declare(name, SymKind::Function)?;
                 rs.define(name);
                 resolve_function(rs, params, body)
             }
@@ -219,22 +271,12 @@ impl VarResolver for ast::ExprNode {
     fn resolve(&self, rs: &mut ResolverState) -> ResolverResult {
         match self {
             ast::ExprNode::Variable { name, id } => {
-                if rs.check(&name.lexeme) == Some(false) {
-                    Err(SloxError::with_token(
-                        ErrorKind::Parse,
-                        name,
-                        "can't read local variable in its own initializer".to_owned(),
-                    ))
-                } else {
-                    rs.resolve_local(id, name);
-                    Ok(())
-                }
+                rs.resolve_local(id, name, false)
             }
 
             ast::ExprNode::Assignment { name, value, id } => {
                 value.resolve(rs)?;
-                rs.resolve_local(id, name);
-                Ok(())
+                rs.resolve_local(id, name, true)
             }
 
             ast::ExprNode::Lambda { params, body } => resolve_function(rs, params, body),
