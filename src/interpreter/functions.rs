@@ -44,7 +44,7 @@ impl Callable for Function {
         let param_env = InterpreterState {
             environment: Environment::create_child(&self.env),
             globals: es.globals.clone(),
-            variables: es.variables,
+            locals: es.locals,
         };
         for (arg, value) in izip!(self.params.iter(), arguments.into_iter()) {
             param_env
