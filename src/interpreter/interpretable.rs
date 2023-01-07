@@ -1,12 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    ast::{ExprNode, FunDecl, ProgramNode, StmtNode},
+    ast::{ClassDecl, ExprNode, FunDecl, ProgramNode, StmtNode},
     errors::{ErrorKind, SloxError, SloxResult},
-    interpreter::{functions::Function, Environment, EnvironmentRef, Value},
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
 };
+
+use super::{class::Class, functions::Function, Environment, EnvironmentRef, Value};
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(ast: &ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
@@ -145,6 +146,7 @@ impl Interpretable for StmtNode {
         match self {
             StmtNode::VarDecl(name, expr) => self.on_var_decl(es, name, expr),
             StmtNode::FunDecl(decl) => self.on_fun_decl(es, decl),
+            StmtNode::ClassDecl(decl) => self.on_class_decl(es, decl),
             StmtNode::Expression(expr) => expr.interpret(es),
             StmtNode::Print(expr) => self.on_print(es, expr),
             StmtNode::Block(statements) => self.on_block(es, statements),
@@ -189,6 +191,16 @@ impl StmtNode {
             None => None,
         };
         es.environment.borrow_mut().define(name, variable)?;
+        Ok(InterpreterFlowControl::default())
+    }
+
+    /// Handle a class declaration
+    fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
+        es.environment.borrow_mut().define(&decl.name, None)?;
+        let class = Class::new(decl.name.lexeme.clone());
+        es.environment
+            .borrow_mut()
+            .assign(&decl.name, Value::Class(class))?;
         Ok(InterpreterFlowControl::default())
     }
 
