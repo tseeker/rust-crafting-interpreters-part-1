@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    ast::{ExprNode, FunDecl, ProgramNode, StmtNode},
+    ast::{ClassDecl, ExprNode, FunDecl, ProgramNode, StmtNode},
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
 };
@@ -38,12 +38,14 @@ impl From<&Option<Token>> for LoopParsingState {
 enum FunctionKind {
     Function,
     Lambda,
+    Method,
 }
 
 impl FunctionKind {
     /// The name of this kind.
     fn name(&self) -> &'static str {
         match self {
+            Self::Method => "method",
             Self::Function => "function",
             Self::Lambda => "lambda",
         }
@@ -52,6 +54,7 @@ impl FunctionKind {
     /// The string that designates what can be found before the parameters
     fn before_params(&self) -> &'static str {
         match self {
+            Self::Method => "method name",
             Self::Function => "function name",
             Self::Lambda => "'fun' keyword",
         }
@@ -59,7 +62,10 @@ impl FunctionKind {
 
     /// The maximal amount of explicit parameters for a function of this kind.
     fn max_params(&self) -> usize {
-        255
+        match self {
+            Self::Method => 254,
+            _ => 255,
+        }
     }
 }
 
@@ -127,30 +133,33 @@ impl Parser {
         ProgramNode(stmts)
     }
 
-    /// Parse the following rule:
+    /// Parse the following rules:
     /// ```
-    /// statement := expression ";"
-    /// statement := "print" expression ";"
-    /// statement := var_declaration ";"
-    /// statement := fun_declaration ";"
-    /// statement := block
-    /// statement := labelled_loop
-    /// statement := if_statement
-    /// statement := while_statement
-    /// statement := for_statement
-    /// statement := loop_control_statement
-    /// statement := return_statement
+    /// statement       := expression ";"
+    /// statement       := "print" expression ";"
+    /// statement       := var_declaration ";"
+    /// statement       := "fun" function ";"
+    /// statement       := "class" class ";"
+    /// statement       := block
+    /// statement       := labelled_loop
+    /// statement       := if_statement
+    /// statement       := while_statement
+    /// statement       := for_statement
+    /// statement       := loop_control_statement
+    /// statement       := return_statement
     /// ```
     fn parse_statement(&mut self) -> SloxResult<StmtNode> {
         if self.expect(&[TokenType::Var]).is_some() {
             self.parse_var_declaration()
+        } else if self.expect(&[TokenType::Class]).is_some() {
+            self.parse_class()
         } else if self.expect(&[TokenType::Fun]).is_some() {
             if self.check(&TokenType::LeftParen) {
                 // This is a lambda.
                 self.current -= 1;
                 self.parse_expression_stmt()
             } else {
-                self.parse_fun_declaration(FunctionKind::Function)
+                self.parse_function(FunctionKind::Function)
             }
         } else if self.expect(&[TokenType::LeftBrace]).is_some() {
             self.parse_block()
@@ -208,11 +217,34 @@ impl Parser {
 
     /// Parse the following rule:
     /// ```
-    /// fun_declaration := "fun" function
+    /// class := IDENTIFIER "{" function* "}"
+    /// ```
+    fn parse_class(&mut self) -> SloxResult<StmtNode> {
+        // Read the name
+        let name = match self.peek().token_type {
+            TokenType::Identifier(_) => self.advance().clone(),
+            _ => return self.error("class name expected"),
+        };
+        // Read the body
+        self.consume(&TokenType::LeftBrace, "'{' expected")?;
+        let mut methods = Vec::new();
+        while !self.check(&TokenType::LeftBrace) && !self.is_at_end() {
+            match self.parse_function(FunctionKind::Method)? {
+                StmtNode::FunDecl(d) => methods.push(d),
+                _ => panic!("Function declaration expected"),
+            }
+        }
+        self.consume(&TokenType::RightBrace, "'}' expected")?;
+
+        Ok(StmtNode::ClassDecl(ClassDecl { name, methods }))
+    }
+
+    /// Parse the following rule:
+    /// ```
     /// function        := IDENTIFIER function_info
     /// ```
     /// The `kind` parameter is used to generate error messages.
-    fn parse_fun_declaration(&mut self, kind: FunctionKind) -> SloxResult<StmtNode> {
+    fn parse_function(&mut self, kind: FunctionKind) -> SloxResult<StmtNode> {
         // Read the name
         let name = match self.peek().token_type {
             TokenType::Identifier(_) => self.advance().clone(),
