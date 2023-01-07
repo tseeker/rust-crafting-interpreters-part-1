@@ -114,19 +114,14 @@ impl ResolverState {
             i -= 1;
             if let Some(info) = self.scopes[i].get_mut(&name.lexeme as &str) {
                 if info.state == SymState::Declared {
-                    return Err(SloxError::with_token(
-                        ErrorKind::Parse,
-                        name,
-                        "symbol accessed before definition".to_owned(),
-                    ));
+                    return self.error(name, "symbol accessed before definition");
                 }
                 info.state = SymState::Used;
                 self.mark_resolved(expr_id, i);
                 return Ok(());
             }
         }
-        // XXX not found !
-        Ok(())
+        self.symbol_not_found(name)
     }
 
     /// Resolve a symbol when it is being assigned to. If the symbol is local,
@@ -138,11 +133,7 @@ impl ResolverState {
             i -= 1;
             if let Some(info) = self.scopes[i].get_mut(&name.lexeme as &str) {
                 if info.kind != SymKind::Variable {
-                    return Err(SloxError::with_token(
-                        ErrorKind::Parse,
-                        name,
-                        "cannot assign to this symbol".to_owned(),
-                    ));
+                    return self.error(name, "cannot assign to this symbol");
                 }
                 if info.state == SymState::Declared {
                     info.state = SymState::Defined;
@@ -151,16 +142,30 @@ impl ResolverState {
                 return Ok(());
             }
         }
-        // XXX not found !
-        Ok(())
+        self.symbol_not_found(name)
     }
 
     /// Add an entry to the resolution map for an AST node.
     fn mark_resolved(&mut self, expr_id: &usize, depth: usize) {
         // Only mark symbols as locals if we're not at the top-level scope.
         if depth != 0 {
-            self.resolved.insert(*expr_id, self.scopes.len() - 1 - depth);
+            self.resolved
+                .insert(*expr_id, self.scopes.len() - 1 - depth);
         }
+    }
+
+    /// Return an error corresponding to an undeclared symbol.
+    fn symbol_not_found(&mut self, name: &Token) -> ResolverResult {
+        self.error(name, "undeclared symbol")
+    }
+
+    /// Return an error.
+    fn error(&mut self, name: &Token, message: &str) -> ResolverResult {
+        Err(SloxError::with_token(
+            ErrorKind::Parse,
+            name,
+            message.to_owned(),
+        ))
     }
 }
 
