@@ -276,8 +276,8 @@ impl Parser {
                 if names.contains(&name.lexeme) {
                     return self.error_mv(format!("duplicate {} parameter", kind.name()));
                 }
-                names.insert(name.lexeme);
-                params.push(self.advance().clone());
+                names.insert(name.lexeme.clone());
+                params.push(name);
                 if self.expect(&[TokenType::Comma]).is_none() {
                     break;
                 }
