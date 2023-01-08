@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    ast::{ClassDecl, ExprNode, FunDecl, ProgramNode, StmtNode},
+    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, StmtNode},
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
 };
@@ -674,11 +674,13 @@ impl Parser {
         Ok(expr)
     }
 
-    /// Parse the following rule:
+    /// Parse the following rules:
     /// ```
     /// unary := "-" unary
     /// unary := "!" unary
-    /// unary := primary call_arguments*
+    /// unary := primary call_or_get*
+    /// call_or_get := call_arguments
+    /// call_or_get := "." IDENTIFIER
     /// ```
     fn parse_unary(&mut self) -> SloxResult<ExprNode> {
         if let Some(operator) = self.expect(&[TokenType::Bang, TokenType::Minus]) {
@@ -688,8 +690,20 @@ impl Parser {
             })
         } else {
             let mut expr = self.parse_primary()?;
-            while self.expect(&[TokenType::LeftParen]).is_some() {
-                expr = self.parse_call_arguments(expr)?;
+            while let Some(token) = self.expect(&[TokenType::LeftParen, TokenType::Dot]) {
+                expr = match token.token_type {
+                    TokenType::LeftParen => self.parse_call_arguments(expr)?,
+                    TokenType::Dot => {
+                        if !self.peek().is_identifier() {
+                            return self.error("property name expected");
+                        }
+                        ExprNode::Get(GetExpr {
+                            instance: Box::new(expr),
+                            name: self.advance().clone(),
+                        })
+                    }
+                    _ => panic!("unexpected token type"),
+                }
             }
             Ok(expr)
         }
