@@ -40,7 +40,7 @@ impl Display for Class {
 
 impl Callable for ClassRef {
     fn arity(&self) -> usize {
-        return 0;
+        0
     }
 
     fn call(&self, _itpr_state: &mut InterpreterState, _arguments: Vec<Value>) -> SloxResult<Value> {
@@ -63,7 +63,7 @@ impl Display for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "<Instance of {}>",
-            self.class.borrow().to_string()
+            self.class.borrow(),
         ))
     }
 }
