@@ -1,6 +1,9 @@
-use std::{cell::RefCell, fmt::Display, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
-use crate::errors::SloxResult;
+use crate::{
+    errors::{ErrorKind, SloxError, SloxResult},
+    tokens::Token,
+};
 
 use super::{Callable, InterpreterState, Value};
 
@@ -17,6 +20,7 @@ pub type ClassRef = Rc<RefCell<Class>>;
 #[derive(Debug, Clone)]
 pub struct Instance {
     class: Rc<RefCell<Class>>,
+    fields: HashMap<String, Value>,
 }
 
 /* -------------------- *
@@ -43,7 +47,11 @@ impl Callable for ClassRef {
         0
     }
 
-    fn call(&self, _itpr_state: &mut InterpreterState, _arguments: Vec<Value>) -> SloxResult<Value> {
+    fn call(
+        &self,
+        _itpr_state: &mut InterpreterState,
+        _arguments: Vec<Value>,
+    ) -> SloxResult<Value> {
         let instance = Instance::new(self.clone());
         Ok(Value::from(instance))
     }
@@ -55,15 +63,26 @@ impl Callable for ClassRef {
 
 impl Instance {
     fn new(class: ClassRef) -> Self {
-        Self { class }
+        Self {
+            class,
+            fields: HashMap::default(),
+        }
+    }
+
+    pub(super) fn get(&self, name: &Token) -> SloxResult<Value> {
+        match self.fields.get(&name.lexeme) {
+            Some(value) => Ok(value.clone()),
+            None => Err(SloxError::with_token(
+                ErrorKind::Runtime,
+                name,
+                "undefined property".to_owned(),
+            )),
+        }
     }
 }
 
 impl Display for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "<Instance of {}>",
-            self.class.borrow(),
-        ))
+        f.write_fmt(format_args!("<Instance of {}>", self.class.borrow(),))
     }
 }
