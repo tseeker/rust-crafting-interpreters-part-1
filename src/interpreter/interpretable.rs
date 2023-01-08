@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    ast::{ClassDecl, ExprNode, FunDecl, ProgramNode, StmtNode},
+    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, StmtNode},
     errors::{ErrorKind, SloxError, SloxResult},
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
@@ -341,6 +341,7 @@ impl Interpretable for ExprNode {
                 let lambda = Function::new(None, params, body, es.environment.clone());
                 Ok(Value::from(lambda).into())
             }
+            ExprNode::Get(get_expr) => self.on_get_expression(es, get_expr),
         }
     }
 }
@@ -506,7 +507,20 @@ impl ExprNode {
                     Ok(callable.call(es, arg_values)?.into())
                 }
             },
-            || error(right_paren, "expression result is not callable")
+            || error(right_paren, "expression result is not callable"),
+        )
+    }
+
+    /// Evaluate a get expression.
+    fn on_get_expression(
+        &self,
+        itpr_state: &mut InterpreterState,
+        get_expr: &GetExpr,
+    ) -> InterpreterResult {
+        let instance = get_expr.instance.interpret(itpr_state)?.result();
+        instance.with_instance(
+            |instance| instance.get(&get_expr.name).map(|v| v.into()),
+            || error(&get_expr.name, "only instances have properties"),
         )
     }
 }
