@@ -200,10 +200,7 @@ impl Parser {
     /// var_declaration := "var" IDENTIFIER "=" expression ";"
     /// ```
     fn parse_var_declaration(&mut self) -> SloxResult<StmtNode> {
-        let name = match self.peek().token_type {
-            TokenType::Identifier(_) => self.advance().clone(),
-            _ => return self.error("expected variable name"),
-        };
+        let name = self.consume_identifier("expected variable name")?;
         let initializer: Option<ExprNode> = match self.expect(&[TokenType::Equal]) {
             Some(_) => Some(self.parse_expression()?),
             None => None,
@@ -220,12 +217,7 @@ impl Parser {
     /// class := IDENTIFIER "{" function* "}"
     /// ```
     fn parse_class(&mut self) -> SloxResult<StmtNode> {
-        // Read the name
-        let name = match self.peek().token_type {
-            TokenType::Identifier(_) => self.advance().clone(),
-            _ => return self.error("class name expected"),
-        };
-        // Read the body
+        let name = self.consume_identifier("expected class name")?;
         self.consume(&TokenType::LeftBrace, "'{' expected")?;
         let mut methods = Vec::new();
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
@@ -245,11 +237,7 @@ impl Parser {
     /// ```
     /// The `kind` parameter is used to generate error messages.
     fn parse_function(&mut self, kind: FunctionKind) -> SloxResult<StmtNode> {
-        // Read the name
-        let name = match self.peek().token_type {
-            TokenType::Identifier(_) => self.advance().clone(),
-            _ => return self.error_mv(format!("expected {} name", kind.name())),
-        };
+        let name = self.consume_identifier(&format!("expected {} name", kind.name()))?;
         let (params, block) = self.parse_function_info(kind)?;
         Ok(StmtNode::FunDecl(FunDecl {
             name,
@@ -284,15 +272,12 @@ impl Parser {
                         kind.max_params()
                     ));
                 }
-                if let TokenType::Identifier(name) = &self.peek().token_type {
-                    if names.contains(name) {
-                        return self.error_mv(format!("duplicate {} parameter", kind.name()));
-                    }
-                    names.insert(name.to_owned());
-                    params.push(self.advance().clone());
-                } else {
-                    return self.error("parameter name expected");
+                let name = self.consume_identifier("parameter name expected")?;
+                if names.contains(&name.lexeme) {
+                    return self.error_mv(format!("duplicate {} parameter", kind.name()));
                 }
+                names.insert(name.lexeme);
+                params.push(self.advance().clone());
                 if self.expect(&[TokenType::Comma]).is_none() {
                     break;
                 }
@@ -357,11 +342,7 @@ impl Parser {
     /// labelled_loop := "@" IDENTIFIER for_statement
     /// ```
     fn parse_labelled_loop(&mut self) -> SloxResult<StmtNode> {
-        let name_token = match self.peek().token_type {
-            TokenType::Identifier(_) => self.advance().clone(),
-            _ => return self.error("identifier expected after '@'"),
-        };
-
+        let name_token = self.consume_identifier("identifier expected after '@'")?;
         if self.expect(&[TokenType::While]).is_some() {
             self.parse_while_statement(Some(name_token))
         } else if self.expect(&[TokenType::For]).is_some() {
@@ -478,7 +459,7 @@ impl Parser {
             ));
         }
 
-        let loop_name = if let TokenType::Identifier(_) = self.peek().token_type {
+        let loop_name = if self.peek().is_identifier() {
             let name_token = self.advance().clone();
             if !self.find_named_loop(&name_token.lexeme) {
                 self.expect(&[TokenType::Semicolon]);
@@ -815,6 +796,17 @@ impl Parser {
             self.current += 1
         }
         self.previous()
+    }
+
+    /// Advance if the current token is an identifier, returning a clone of
+    /// the token. If it isn't, an error with the specified message is
+    /// returned instead.
+    fn consume_identifier(&mut self, message: &str) -> SloxResult<Token> {
+        if self.peek().is_identifier() {
+            Ok(self.advance().clone())
+        } else {
+            self.error(message)
+        }
     }
 
     /// Check whether the end of token stream has been reached by checking
