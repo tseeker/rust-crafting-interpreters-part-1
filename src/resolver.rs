@@ -352,6 +352,7 @@ impl VarResolver for ExprNode {
                 right_paren: _,
                 arguments,
             } => callee.resolve(rs).and_then(|_| arguments.resolve(rs)),
+            ExprNode::Get(get_expr) => get_expr.instance.resolve(rs),
         }
     }
 }
