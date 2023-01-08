@@ -58,6 +58,40 @@ impl Value {
             Object::Instance(_) => ferr(),
         }
     }
+
+    /// Run some code against an instance value. If the value does not
+    /// contain an instance, an error function will be called instead.
+    pub fn with_instance<Fok, Ferr, Rt>(&self, fok: Fok, ferr: Ferr) -> Rt
+    where
+        Fok: FnOnce(&Instance) -> Rt,
+        Ferr: FnOnce() -> Rt,
+    {
+        let obj = match self {
+            Value::Object(obj_ref) => obj_ref.borrow(),
+            _ => return ferr(),
+        };
+        match &*obj {
+            Object::Instance(inst) => fok(inst),
+            _ => ferr(),
+        }
+    }
+
+    /// Run some code against a mutable instance value. If the value does
+    /// not contain an instance, an error function will be called instead.
+    pub fn with_instance_mut<Fok, Ferr, Rt>(&self, fok: Fok, ferr: Ferr) -> Rt
+    where
+        Fok: FnOnce(&mut Instance) -> Rt,
+        Ferr: FnOnce() -> Rt,
+    {
+        let mut obj = match self {
+            Value::Object(obj_ref) => obj_ref.borrow_mut(),
+            _ => return ferr(),
+        };
+        match &mut *obj {
+            Object::Instance(inst) => fok(inst),
+            _ => ferr(),
+        }
+    }
 }
 
 impl PartialEq for Value {
