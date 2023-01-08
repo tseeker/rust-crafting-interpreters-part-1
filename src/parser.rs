@@ -228,7 +228,7 @@ impl Parser {
         // Read the body
         self.consume(&TokenType::LeftBrace, "'{' expected")?;
         let mut methods = Vec::new();
-        while !self.check(&TokenType::LeftBrace) && !self.is_at_end() {
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
             match self.parse_function(FunctionKind::Method)? {
                 StmtNode::FunDecl(d) => methods.push(d),
                 _ => panic!("Function declaration expected"),
