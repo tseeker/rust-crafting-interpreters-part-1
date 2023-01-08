@@ -69,4 +69,17 @@ impl Token {
                 | TokenType::Number(_)
         )
     }
+
+    /// Check whether a token is an identifier.
+    pub fn is_identifier(&self) -> bool {
+        matches!(self.token_type, TokenType::Identifier(_))
+    }
+
+    /// Get the name from an identifier token, returning an error otherwise.
+    pub fn as_identifier(&self) -> Result<&str, &'static str> {
+        match &self.token_type {
+            TokenType::Identifier(name) => Ok(name),
+            _ => Err("token is not an identifier"),
+        }
+    }
 }
