@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::fmt::Display;
 
 use itertools::izip;
 
@@ -9,8 +9,8 @@ use super::{
 use crate::{ast, errors::SloxResult, tokens::Token};
 
 /// A function implemented in the Lox-ish language.
-#[derive(Debug)]
-pub(super) struct Function {
+#[derive(Debug, Clone)]
+pub struct Function {
     name: Option<Token>,
     params: Vec<Token>,
     body: Vec<ast::StmtNode>,
@@ -23,14 +23,13 @@ impl Function {
         params: &[Token],
         body: &[ast::StmtNode],
         environment: EnvironmentRef,
-    ) -> Rc<RefCell<Self>> {
-        let fun = Self {
+    ) -> Self {
+        Self {
             name: name.cloned(),
             params: params.to_owned(),
             body: body.to_owned(),
             env: environment,
-        };
-        Rc::new(RefCell::new(fun))
+        }
     }
 }
 
@@ -39,17 +38,12 @@ impl Callable for Function {
         self.params.len()
     }
 
-    fn call(
-        &self,
-        _callee: &Value,
-        es: &mut InterpreterState,
-        arguments: Vec<Value>,
-    ) -> SloxResult<Value> {
+    fn call(&self, itpr_state: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value> {
         assert_eq!(arguments.len(), self.arity());
         let param_env = InterpreterState {
             environment: Environment::create_child(&self.env),
-            globals: es.globals.clone(),
-            locals: es.locals,
+            globals: itpr_state.globals.clone(),
+            locals: itpr_state.locals,
         };
         for (arg, value) in izip!(self.params.iter(), arguments.into_iter()) {
             param_env
@@ -72,11 +66,15 @@ impl Callable for Function {
     }
 }
 
-impl ToString for Function {
-    fn to_string(&self) -> String {
+impl Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.name {
-            None => "<lambda>".to_owned(),
-            Some(token) => format!("<fun {}>", token.lexeme),
+            None => f.write_str("<lambda>"),
+            Some(token) => {
+                f.write_str("<fun ")?;
+                f.write_str(&token.lexeme)?;
+                f.write_str(">")
+            }
         }
     }
 }

@@ -200,7 +200,7 @@ impl StmtNode {
         let class = Class::new(decl.name.lexeme.clone());
         es.environment
             .borrow_mut()
-            .assign(&decl.name, Value::Class(class))?;
+            .assign(&decl.name, class.into())?;
         Ok(InterpreterFlowControl::default())
     }
 
@@ -214,7 +214,7 @@ impl StmtNode {
         );
         es.environment
             .borrow_mut()
-            .define(&decl.name, Some(Value::Callable(fun)))?;
+            .define(&decl.name, Some(fun.into()))?;
         Ok(InterpreterFlowControl::default())
     }
 
@@ -338,10 +338,8 @@ impl Interpretable for ExprNode {
                 arguments,
             } => self.on_call(es, callee, right_paren, arguments),
             ExprNode::Lambda { params, body } => {
-                Ok(
-                    Value::Callable(Function::new(None, params, body, es.environment.clone()))
-                        .into(),
-                )
+                let lambda = Function::new(None, params, body, es.environment.clone());
+                Ok(Value::from(lambda).into())
             }
         }
     }
@@ -492,23 +490,23 @@ impl ExprNode {
             }
             v
         };
-        if let Value::Callable(callable_ref) = &callee {
-            let callable = callable_ref.borrow();
-            if callable.arity() != arg_values.len() {
-                Err(SloxError::with_token(
-                    ErrorKind::Runtime,
-                    right_paren,
-                    format!(
-                        "expected {} arguments, found {}",
-                        arg_values.len(),
-                        callable.arity()
-                    ),
-                ))
-            } else {
-                Ok(callable.call(&callee, es, arg_values)?.into())
-            }
-        } else {
-            error(right_paren, "can only call functions and classes")
-        }
+        callee.with_callable(
+            |callable| {
+                if callable.arity() != arg_values.len() {
+                    Err(SloxError::with_token(
+                        ErrorKind::Runtime,
+                        right_paren,
+                        format!(
+                            "expected {} arguments, found {}",
+                            arg_values.len(),
+                            callable.arity()
+                        ),
+                    ))
+                } else {
+                    Ok(callable.call(es, arg_values)?.into())
+                }
+            },
+            || error(right_paren, "expression result is not callable")
+        )
     }
 }

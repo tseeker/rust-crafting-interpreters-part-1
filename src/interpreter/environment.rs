@@ -5,7 +5,7 @@ use crate::{
     tokens::Token,
 };
 
-use super::{native_fn, CallableRef, Value};
+use super::{Value, native_fn::{self, NativeFunction}};
 
 /// A mutable reference to an environment.
 pub(super) type EnvironmentRef = Rc<RefCell<Environment>>;
@@ -27,7 +27,7 @@ impl Default for Environment {
             enclosing: None,
             values: HashMap::new(),
         };
-        env.add_default_fun("clock", native_fn::clock());
+        env.add_default_fun(native_fn::clock());
         env
     }
 }
@@ -42,9 +42,10 @@ impl Environment {
     }
 
     /// Add a default function to the environment.
-    fn add_default_fun(&mut self, name: &str, fun: CallableRef) {
-        let value = Some(Value::Callable(fun));
-        self.values.insert(name.to_owned(), value);
+    fn add_default_fun(&mut self, fun: NativeFunction) {
+        let name = fun.name().to_owned();
+        let value = Some(Value::from(fun));
+        self.values.insert(name, value);
     }
 
     /// Define a new variable.
