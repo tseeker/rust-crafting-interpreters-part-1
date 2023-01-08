@@ -74,6 +74,15 @@ impl StmtNode {
     }
 }
 
+/// A getter expression.
+#[derive(Debug, Clone)]
+pub struct GetExpr {
+    /// The instance being accessed.
+    pub instance: Box<ExprNode>,
+    /// The name of the property.
+    pub name: Token,
+}
+
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
@@ -134,6 +143,9 @@ pub enum ExprNode {
         /// The list of function arguments.
         arguments: Vec<ExprNode>,
     },
+
+    /// A get expression.
+    Get(GetExpr),
 }
 
 /* -------------------------------- *
@@ -325,6 +337,14 @@ impl AstDumper for ExprNode {
                             .join(" ")
                     )
                 }
+            }
+
+            ExprNode::Get(get_expr) => {
+                format!(
+                    "( get {} {} )",
+                    get_expr.instance.dump(),
+                    get_expr.name.lexeme
+                )
             }
         }
     }
