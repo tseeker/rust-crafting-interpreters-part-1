@@ -7,7 +7,7 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
-use super::{class::Class, functions::Function, Environment, EnvironmentRef, Value};
+use super::{classes::Class, functions::Function, Environment, EnvironmentRef, Value};
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(ast: &ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {

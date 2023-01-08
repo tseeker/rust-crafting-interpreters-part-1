@@ -1,5 +1,5 @@
 mod callable;
-mod class;
+mod classes;
 mod environment;
 mod functions;
 mod interpretable;

@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use super::{
-    class::{Class, ClassRef, Instance},
+    classes::{Class, ClassRef, Instance},
     functions::Function,
     native_fn::NativeFunction,
     Callable,
