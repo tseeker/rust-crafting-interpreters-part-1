@@ -39,7 +39,12 @@ impl Callable for Function {
         self.params.len()
     }
 
-    fn call(&self, es: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value> {
+    fn call(
+        &self,
+        _callee: &Value,
+        es: &mut InterpreterState,
+        arguments: Vec<Value>,
+    ) -> SloxResult<Value> {
         assert_eq!(arguments.len(), self.arity());
         let param_env = InterpreterState {
             environment: Environment::create_child(&self.env),

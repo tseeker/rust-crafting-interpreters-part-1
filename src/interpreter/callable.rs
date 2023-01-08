@@ -11,7 +11,7 @@ pub trait Callable: Debug + ToString {
 
     /// Run the callable in the execution environment with the specified
     /// arguments.
-    fn call(&self, environment: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value>;
+    fn call(&self, callee: &Value, environment: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value>;
 }
 
 /// A reference to a callable.

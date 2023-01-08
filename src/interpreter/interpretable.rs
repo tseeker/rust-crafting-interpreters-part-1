@@ -505,7 +505,7 @@ impl ExprNode {
                     ),
                 ))
             } else {
-                Ok(callable.call(es, arg_values)?.into())
+                Ok(callable.call(&callee, es, arg_values)?.into())
             }
         } else {
             error(right_paren, "can only call functions and classes")

@@ -20,7 +20,12 @@ impl Callable for Clock {
         0
     }
 
-    fn call(&self, _environment: &mut InterpreterState, _arguments: Vec<Value>) -> SloxResult<Value> {
+    fn call(
+        &self,
+        _callee: &Value,
+        _environment: &mut InterpreterState,
+        _arguments: Vec<Value>,
+    ) -> SloxResult<Value> {
         let now = SystemTime::now();
         let since_epoch = now
             .duration_since(UNIX_EPOCH)
