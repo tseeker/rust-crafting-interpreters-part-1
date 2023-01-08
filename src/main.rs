@@ -1,4 +1,5 @@
 mod ast;
+mod dumper;
 mod errors;
 mod interpreter;
 mod parser;
@@ -13,7 +14,7 @@ use std::{
 };
 
 #[cfg(feature = "dump_ast")]
-use ast::AstDumper;
+use dumper::dump_program;
 use errors::{ErrorHandler, SloxResult};
 use interpreter::{evaluate, Value};
 use parser::Parser;
@@ -34,7 +35,7 @@ fn run(source: String) -> SloxResult<()> {
     let parser = Parser::new(tokens);
     let ast = parser.parse(&mut error_handler)?;
     #[cfg(feature = "dump_ast")]
-    println!("AST generated ! {}", ast.dump());
+    println!("AST generated ! {}", dump_program(&ast));
 
     let resolved_vars = error_handler.report_or_continue(resolve_variables(&ast))?;
     let value = error_handler.report_or_continue(evaluate(&ast, resolved_vars))?;
