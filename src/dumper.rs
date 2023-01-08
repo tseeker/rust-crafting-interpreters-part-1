@@ -70,7 +70,7 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
                 dumper.depth -= 1;
                 dumper.add_line(String::default());
             }
-            dumper.current_line().push_str("}");
+            dumper.current_line().push('}');
         }
 
         StmtNode::ClassDecl(decl) => {
@@ -91,7 +91,7 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
                 dumper.depth -= 1;
                 dumper.add_line(String::default());
             }
-            dumper.current_line().push_str("}");
+            dumper.current_line().push('}');
         }
 
         StmtNode::Expression(expr) => {
@@ -197,9 +197,9 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             right,
         } => {
             dump_expr_node(dumper, left);
-            dumper.current_line().push_str(" ");
+            dumper.current_line().push(' ');
             dumper.current_line().push_str(&operator.lexeme);
-            dumper.current_line().push_str(" ");
+            dumper.current_line().push(' ');
             dump_expr_node(dumper, right);
         }
 
@@ -209,9 +209,9 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             right,
         } => {
             dump_expr_node(dumper, left);
-            dumper.current_line().push_str(" ");
+            dumper.current_line().push(' ');
             dumper.current_line().push_str(&operator.lexeme);
-            dumper.current_line().push_str(" ");
+            dumper.current_line().push(' ');
             dump_expr_node(dumper, right);
         }
 
@@ -221,9 +221,9 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
         }
 
         ExprNode::Grouping { expression } => {
-            dumper.current_line().push_str("(");
+            dumper.current_line().push('(');
             dump_expr_node(dumper, expression);
-            dumper.current_line().push_str(")");
+            dumper.current_line().push(')');
         }
 
         ExprNode::Litteral { value } => {
@@ -245,7 +245,7 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
                 dumper.add_line(String::default());
                 dumper.depth -= 1;
             }
-            dumper.current_line().push_str("}");
+            dumper.current_line().push('}');
         }
 
         ExprNode::Call {
@@ -254,14 +254,14 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             arguments,
         } => {
             dump_expr_node(dumper, callee);
-            dumper.current_line().push_str("(");
+            dumper.current_line().push('(');
             for (i, argument) in arguments.iter().enumerate() {
                 dump_expr_node(dumper, argument);
                 if arguments.len() - 1 > i {
                     dumper.current_line().push_str(", ");
                 }
             }
-            dumper.current_line().push_str(")");
+            dumper.current_line().push(')');
         }
 
         ExprNode::Get(_) => todo!(),
