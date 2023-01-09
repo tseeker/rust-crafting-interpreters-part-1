@@ -145,6 +145,8 @@ pub enum ExprNode {
 
     /// A reference to a variable.
     Variable(VariableExpr),
+    /// The "this" keyword.
+    This(VariableExpr),
 
     /// A lambda function.
     Lambda {
