@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 
 use crate::{
-    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode},
+    ast::{
+        BinaryExpr, ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode,
+        VariableExpr,
+    },
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
 };
@@ -526,9 +529,9 @@ impl Parser {
         let expr = self.parse_logic_or()?;
         if let Some(equals) = self.expect(&[TokenType::Equal]) {
             let value = self.parse_assignment()?;
-            if let ExprNode::Variable { name, id: _ } = expr {
+            if let ExprNode::Variable(var) = expr {
                 Ok(ExprNode::Assignment {
-                    name,
+                    name: var.token,
                     value: Box::new(value),
                     id: self.make_id(),
                 })
@@ -558,11 +561,11 @@ impl Parser {
         let mut expr = self.parse_logic_and()?;
         while let Some(operator) = self.expect(&[TokenType::Or]) {
             let right = self.parse_logic_and()?;
-            expr = ExprNode::Logical {
+            expr = ExprNode::Logical(BinaryExpr {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -575,11 +578,11 @@ impl Parser {
         let mut expr = self.parse_equality()?;
         while let Some(operator) = self.expect(&[TokenType::And]) {
             let right = self.parse_equality()?;
-            expr = ExprNode::Logical {
+            expr = ExprNode::Logical(BinaryExpr {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -593,11 +596,11 @@ impl Parser {
         let mut expr = self.parse_comparison()?;
         while let Some(operator) = self.expect(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let right = self.parse_comparison()?;
-            expr = ExprNode::Binary {
+            expr = ExprNode::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -616,11 +619,11 @@ impl Parser {
             TokenType::LessEqual,
         ]) {
             let right = self.parse_term()?;
-            expr = ExprNode::Binary {
+            expr = ExprNode::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -634,11 +637,11 @@ impl Parser {
         let mut expr = self.parse_factor()?;
         while let Some(operator) = self.expect(&[TokenType::Minus, TokenType::Plus]) {
             let right = self.parse_factor()?;
-            expr = ExprNode::Binary {
+            expr = ExprNode::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -652,11 +655,11 @@ impl Parser {
         let mut expr = self.parse_unary()?;
         while let Some(operator) = self.expect(&[TokenType::Slash, TokenType::Star]) {
             let right = self.parse_unary()?;
-            expr = ExprNode::Binary {
+            expr = ExprNode::Binary(BinaryExpr {
                 left: Box::new(expr),
                 operator: operator.clone(),
                 right: Box::new(right),
-            };
+            });
         }
         Ok(expr)
     }
@@ -722,10 +725,10 @@ impl Parser {
                 TokenType::Number(_) | &TokenType::String(_) => Ok(ExprNode::Litteral {
                     value: self.advance().clone(),
                 }),
-                TokenType::Identifier(_) => Ok(ExprNode::Variable {
-                    name: self.advance().clone(),
+                TokenType::Identifier(_) => Ok(ExprNode::Variable(VariableExpr {
+                    token: self.advance().clone(),
                     id: self.make_id(),
-                }),
+                })),
                 _ => self.error("expected expression"),
             }
         }
