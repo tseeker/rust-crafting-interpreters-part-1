@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, StmtNode},
+    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode},
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
 };
@@ -532,6 +532,12 @@ impl Parser {
                     value: Box::new(value),
                     id: self.make_id(),
                 })
+            } else if let ExprNode::Get(get_expr) = expr {
+                Ok(ExprNode::Set(SetExpr {
+                    instance: get_expr.instance,
+                    name: get_expr.name,
+                    value: Box::new(value),
+                }))
             } else {
                 Err(SloxError::with_token(
                     ErrorKind::Parse,
