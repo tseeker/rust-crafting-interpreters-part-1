@@ -339,20 +339,27 @@ impl VarResolver for ExprNode {
                 operator: _,
                 right,
             } => left.resolve(rs).and_then(|_| right.resolve(rs)),
+
             ExprNode::Binary {
                 left,
                 operator: _,
                 right,
             } => left.resolve(rs).and_then(|_| right.resolve(rs)),
+
             ExprNode::Unary { operator: _, right } => right.resolve(rs),
+
             ExprNode::Grouping { expression } => expression.resolve(rs),
+
             ExprNode::Litteral { value: _ } => Ok(()),
+
             ExprNode::Call {
                 callee,
                 right_paren: _,
                 arguments,
             } => callee.resolve(rs).and_then(|_| arguments.resolve(rs)),
+
             ExprNode::Get(get_expr) => get_expr.instance.resolve(rs),
+
             ExprNode::Set(set_expr) => set_expr
                 .instance
                 .resolve(rs)
