@@ -539,7 +539,7 @@ impl ExprNode {
     ) -> InterpreterResult {
         let instance = get_expr.instance.interpret(itpr_state)?.result();
         instance.with_instance(
-            |instance| instance.get(&get_expr.name).map(|v| v.into()),
+            |inst| inst.get(&instance, &get_expr.name).map(|v| v.into()),
             || error(&get_expr.name, "only instances have properties"),
         )
     }

@@ -1,4 +1,9 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt::Display,
+    rc::Rc,
+};
 
 use crate::{
     errors::{ErrorKind, SloxError, SloxResult},
@@ -77,12 +82,16 @@ impl Instance {
         }
     }
 
-    pub(super) fn get(&self, name: &Token) -> SloxResult<Value> {
+    pub(super) fn get(&self, this_value: &Value, name: &Token) -> SloxResult<Value> {
         if let Some(value) = self.fields.get(&name.lexeme) {
             return Ok(value.clone());
         }
-        if let Some(method) = self.class.borrow().methods.get(&name.lexeme) {
-            return Ok(Value::from(method.clone()));
+        if self.class.borrow().methods.get(&name.lexeme).is_some() {
+            let bound_method = BoundMethod {
+                instance: this_value.clone(),
+                method: name.lexeme.clone(),
+            };
+            return Ok(Value::from(bound_method));
         }
 
         Err(SloxError::with_token(
@@ -150,6 +159,21 @@ impl Callable for BoundMethod {
             .environment
             .borrow_mut()
             .define(&self.this_token(), Some(self.instance.clone()))?;
+        println!("{:?}", this_env.locals);
         self.with_method(|m| m.call(&mut this_env, arguments))
+    }
+}
+
+impl Display for BoundMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.instance.with_instance(
+            |instance| {
+                f.write_fmt(format_args!(
+                    "<Bound method {} of {}>",
+                    self.method, instance
+                ))
+            },
+            || panic!("Instance value does not contain an instance"),
+        )
     }
 }
