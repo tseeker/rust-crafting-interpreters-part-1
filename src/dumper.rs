@@ -269,6 +269,14 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             dumper.current_line().push('.');
             dumper.current_line().push_str(&get_expr.name.lexeme);
         }
+
+        ExprNode::Set(set_expr) => {
+            dump_expr_node(dumper, &set_expr.instance);
+            dumper.current_line().push('.');
+            dumper.current_line().push_str(&set_expr.name.lexeme);
+            dumper.current_line().push_str(" = ");
+            dump_expr_node(dumper, &set_expr.value);
+        }
     }
 }
 
