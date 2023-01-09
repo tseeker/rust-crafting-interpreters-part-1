@@ -31,6 +31,10 @@ impl Function {
             env: environment,
         }
     }
+
+    pub(super) fn name(&self) -> Option<&Token> {
+        self.name.as_ref()
+    }
 }
 
 impl Callable for Function {
