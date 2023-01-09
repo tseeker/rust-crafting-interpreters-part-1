@@ -328,7 +328,7 @@ impl VarResolver for ExprNode {
         'a: 'b,
     {
         match self {
-            ExprNode::Variable { name, id } => rs.resolve_use(id, name),
+            ExprNode::Variable(var_expr) => rs.resolve_use(&var_expr.id, &var_expr.token),
 
             ExprNode::Assignment { name, value, id } => {
                 value.resolve(rs)?;
@@ -339,17 +339,10 @@ impl VarResolver for ExprNode {
                 rs.with_scope(|rs| resolve_function(rs, params, body))
             }
 
-            ExprNode::Logical {
-                left,
-                operator: _,
-                right,
-            } => left.resolve(rs).and_then(|_| right.resolve(rs)),
-
-            ExprNode::Binary {
-                left,
-                operator: _,
-                right,
-            } => left.resolve(rs).and_then(|_| right.resolve(rs)),
+            ExprNode::Logical(binary_expr) | ExprNode::Binary(binary_expr) => binary_expr
+                .left
+                .resolve(rs)
+                .and_then(|_| binary_expr.right.resolve(rs)),
 
             ExprNode::Unary { operator: _, right } => right.resolve(rs),
 
