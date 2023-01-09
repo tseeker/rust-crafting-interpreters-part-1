@@ -348,7 +348,9 @@ impl Interpretable for ExprNode {
             ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
             ExprNode::Grouping { expression } => expression.interpret(es),
             ExprNode::Litteral { value } => self.on_litteral(value),
-            ExprNode::Variable(var_expr) => Ok(es.lookup_var(var_expr)?.into()),
+            ExprNode::Variable(var_expr) | ExprNode::This(var_expr) => {
+                Ok(es.lookup_var(var_expr)?.into())
+            }
             ExprNode::Call {
                 callee,
                 right_paren,
