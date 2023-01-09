@@ -265,7 +265,12 @@ impl VarResolver for StmtNode {
             StmtNode::ClassDecl(decl) => {
                 rs.declare(&decl.name, SymKind::Class)?;
                 rs.define(&decl.name);
-                Ok(())
+                decl.methods
+                    .iter()
+                    .map(|method| {
+                        rs.with_scope(|rs| resolve_function(rs, &method.params, &method.body))
+                    })
+                    .collect()
             }
 
             StmtNode::If {
