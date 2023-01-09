@@ -725,10 +725,8 @@ impl Parser {
                 TokenType::Number(_) | &TokenType::String(_) => Ok(ExprNode::Litteral {
                     value: self.advance().clone(),
                 }),
-                TokenType::Identifier(_) => Ok(ExprNode::Variable(VariableExpr {
-                    token: self.advance().clone(),
-                    id: self.make_id(),
-                })),
+                TokenType::Identifier(_) => Ok(ExprNode::Variable(self.make_var_expr())),
+                TokenType::This => Ok(ExprNode::This(self.make_var_expr())),
                 _ => self.error("expected expression"),
             }
         }
@@ -765,6 +763,14 @@ impl Parser {
     /* -------------- *
      * HELPER METHODS *
      * -------------- */
+
+    /// Generate a variable reference record based on the current token.
+    fn make_var_expr(&mut self) -> VariableExpr {
+        VariableExpr {
+            token: self.advance().clone(),
+            id: self.make_id(),
+        }
+    }
 
     /// Expect a token of some types. If a matching token is found, the read
     /// pointer is moved and a clone of the token is returned.
