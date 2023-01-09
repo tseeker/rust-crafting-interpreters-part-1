@@ -71,14 +71,18 @@ impl Instance {
     }
 
     pub(super) fn get(&self, name: &Token) -> SloxResult<Value> {
-        match self.fields.get(&name.lexeme) {
-            Some(value) => Ok(value.clone()),
-            None => Err(SloxError::with_token(
-                ErrorKind::Runtime,
-                name,
-                "undefined property".to_owned(),
-            )),
+        if let Some(value) = self.fields.get(&name.lexeme) {
+            return Ok(value.clone());
         }
+        if let Some(method) = self.class.borrow().methods.get(&name.lexeme) {
+            return Ok(Value::from(method.clone()));
+        }
+
+        Err(SloxError::with_token(
+            ErrorKind::Runtime,
+            name,
+            "undefined property".to_owned(),
+        ))
     }
 
     pub(super) fn set(&mut self, name: &Token, value: Value) {
