@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{ExprNode, ProgramNode, StmtNode, VariableExpr},
+    ast::{ExprNode, FunDecl, ProgramNode, StmtNode, VariableExpr},
     errors::{ErrorKind, SloxError, SloxResult},
     tokens::Token,
 };
@@ -38,12 +38,13 @@ enum SymKind {
     Variable,
     Function,
     Class,
+    This,
 }
 
 /// General information about a symbol.
 #[derive(Clone, Debug)]
 struct SymInfo<'a> {
-    decl: &'a Token,
+    decl: Option<&'a Token>,
     kind: SymKind,
     state: SymState,
 }
@@ -77,10 +78,11 @@ impl<'a> ResolverState<'a> {
         self.scopes[self.scopes.len() - 1]
             .values()
             .filter(|v| v.state != SymState::Used)
-            .find(|v| !v.decl.lexeme.starts_with('_'))
+            .filter(|v| v.decl.is_some())
+            .find(|v| !v.decl.unwrap().lexeme.starts_with('_'))
             .map_or(Ok(()), |v| {
                 self.error(
-                    v.decl,
+                    v.decl.unwrap(),
                     "unused symbol; prefix its name with '_' to avoid this error",
                 )
             })
@@ -105,7 +107,7 @@ impl<'a> ResolverState<'a> {
             scope.insert(
                 name.lexeme.clone(),
                 SymInfo {
-                    decl: name,
+                    decl: Some(name),
                     kind,
                     state: SymState::Declared,
                 },
@@ -125,6 +127,22 @@ impl<'a> ResolverState<'a> {
                 info.state = SymState::Defined;
             }
         }
+    }
+
+    /// Declare and define the "this" value for the current scope.
+    fn define_this(&mut self) {
+        assert!(!self.scopes.is_empty());
+        let idx = self.scopes.len() - 1;
+        let scope = &mut self.scopes[idx];
+        assert!(!scope.contains_key("this"));
+        scope.insert(
+            "this".to_owned(),
+            SymInfo {
+                decl: None,
+                kind: SymKind::This,
+                state: SymState::Defined,
+            },
+        );
     }
 
     /// Resolve a symbol when it is being used. If the symbol is local,
@@ -208,6 +226,18 @@ where
     rs.with_scope(|rs| body.resolve(rs))
 }
 
+/// Process all method definitions in a class.
+fn resolve_class<'a, 'b>(rs: &mut ResolverState<'a>, methods: &'b [FunDecl]) -> ResolverResult
+where
+    'b: 'a,
+{
+    rs.define_this();
+    methods
+        .iter()
+        .map(|method| rs.with_scope(|rs| resolve_function(rs, &method.params, &method.body)))
+        .collect()
+}
+
 /// Helper trait used to visit the various AST nodes with the resolver.
 trait VarResolver {
     /// Try to resolve local variables under some AST node.
@@ -265,12 +295,7 @@ impl VarResolver for StmtNode {
             StmtNode::ClassDecl(decl) => {
                 rs.declare(&decl.name, SymKind::Class)?;
                 rs.define(&decl.name);
-                decl.methods
-                    .iter()
-                    .map(|method| {
-                        rs.with_scope(|rs| resolve_function(rs, &method.params, &method.body))
-                    })
-                    .collect()
+                rs.with_scope(|rs| resolve_class(rs, &decl.methods))
             }
 
             StmtNode::If {
