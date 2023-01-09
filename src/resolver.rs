@@ -353,6 +353,10 @@ impl VarResolver for ExprNode {
                 arguments,
             } => callee.resolve(rs).and_then(|_| arguments.resolve(rs)),
             ExprNode::Get(get_expr) => get_expr.instance.resolve(rs),
+            ExprNode::Set(set_expr) => set_expr
+                .instance
+                .resolve(rs)
+                .and_then(|_| set_expr.value.resolve(rs)),
         }
     }
 }
