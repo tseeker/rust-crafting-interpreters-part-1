@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{ExprNode, ProgramNode, StmtNode},
+    ast::{ExprNode, ProgramNode, StmtNode, VariableExpr},
     errors::{ErrorKind, SloxError, SloxResult},
     tokens::Token,
 };
@@ -129,20 +129,20 @@ impl<'a> ResolverState<'a> {
 
     /// Resolve a symbol when it is being used. If the symbol is local,
     /// the lookup distance will be stored to the resolution map.
-    fn resolve_use(&mut self, expr_id: &usize, name: &Token) -> ResolverResult {
+    fn resolve_use(&mut self, expr: &VariableExpr) -> ResolverResult {
         let mut i = self.scopes.len();
         while i != 0 {
             i -= 1;
-            if let Some(info) = self.scopes[i].get_mut(&name.lexeme as &str) {
+            if let Some(info) = self.scopes[i].get_mut(&expr.token.lexeme as &str) {
                 if info.state == SymState::Declared {
-                    return self.error(name, "symbol accessed before definition");
+                    return self.error(&expr.token, "symbol accessed before definition");
                 }
                 info.state = SymState::Used;
-                self.mark_resolved(expr_id, i);
+                self.mark_resolved(&expr.id, i);
                 return Ok(());
             }
         }
-        self.symbol_not_found(name)
+        self.symbol_not_found(&expr.token)
     }
 
     /// Resolve a symbol when it is being assigned to. If the symbol is local,
@@ -328,7 +328,7 @@ impl VarResolver for ExprNode {
         'a: 'b,
     {
         match self {
-            ExprNode::Variable(var_expr) => rs.resolve_use(&var_expr.id, &var_expr.token),
+            ExprNode::Variable(var_expr) => rs.resolve_use(var_expr),
 
             ExprNode::Assignment { name, value, id } => {
                 value.resolve(rs)?;
