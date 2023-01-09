@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, StmtNode},
+    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode},
     errors::{ErrorKind, SloxError, SloxResult},
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
@@ -342,6 +342,7 @@ impl Interpretable for ExprNode {
                 Ok(Value::from(lambda).into())
             }
             ExprNode::Get(get_expr) => self.on_get_expression(es, get_expr),
+            ExprNode::Set(set_expr) => self.on_set_expression(es, set_expr),
         }
     }
 }
@@ -521,6 +522,23 @@ impl ExprNode {
         instance.with_instance(
             |instance| instance.get(&get_expr.name).map(|v| v.into()),
             || error(&get_expr.name, "only instances have properties"),
+        )
+    }
+
+    /// Evaluate a set expression.
+    fn on_set_expression(
+        &self,
+        itpr_state: &mut InterpreterState,
+        set_expr: &SetExpr,
+    ) -> InterpreterResult {
+        let instance = set_expr.instance.interpret(itpr_state)?.result();
+        instance.with_instance_mut(
+            |instance| {
+                let value = set_expr.value.interpret(itpr_state)?.result();
+                instance.set(&set_expr.name, value.clone());
+                Ok(value.into())
+            },
+            || error(&set_expr.name, "only instances have properties"),
         )
     }
 }

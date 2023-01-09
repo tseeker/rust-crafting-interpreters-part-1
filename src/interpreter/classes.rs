@@ -79,6 +79,10 @@ impl Instance {
             )),
         }
     }
+
+    pub(super) fn set(&mut self, name: &Token, value: Value) {
+        self.fields.insert(name.lexeme.clone(), value);
+    }
 }
 
 impl Display for Instance {
