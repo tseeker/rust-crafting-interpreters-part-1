@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode},
+    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode, VariableExpr},
     errors::{ErrorKind, SloxError, SloxResult},
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
@@ -50,10 +50,10 @@ impl<'a> InterpreterState<'a> {
         }
     }
 
-    fn lookup_var(&self, name: &Token, expr_id: &usize) -> SloxResult<Value> {
-        match self.locals.get(expr_id) {
-            Some(distance) => self.environment.borrow().get_at(*distance, name),
-            None => self.globals.borrow().get(name),
+    fn lookup_var(&self, expr: &VariableExpr) -> SloxResult<Value> {
+        match self.locals.get(&expr.id) {
+            Some(distance) => self.environment.borrow().get_at(*distance, &expr.token),
+            None => self.globals.borrow().get(&expr.token),
         }
     }
 
@@ -348,9 +348,7 @@ impl Interpretable for ExprNode {
             ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
             ExprNode::Grouping { expression } => expression.interpret(es),
             ExprNode::Litteral { value } => self.on_litteral(value),
-            ExprNode::Variable(var_expr) => {
-                Ok(es.lookup_var(&var_expr.token, &var_expr.id)?.into())
-            }
+            ExprNode::Variable(var_expr) => Ok(es.lookup_var(var_expr)?.into()),
             ExprNode::Call {
                 callee,
                 right_paren,
