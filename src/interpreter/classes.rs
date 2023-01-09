@@ -5,12 +5,13 @@ use crate::{
     tokens::Token,
 };
 
-use super::{Callable, InterpreterState, Value};
+use super::{functions::Function, Callable, InterpreterState, Value};
 
 /// A Lox class.
 #[derive(Debug, Clone)]
 pub struct Class {
     name: String,
+    methods: HashMap<String, Function>,
 }
 
 /// Classes are mostly used through references.
@@ -29,8 +30,8 @@ pub struct Instance {
 
 impl Class {
     /// Create a new class, specifying its name.
-    pub fn new(name: String) -> Self {
-        Self { name }
+    pub fn new(name: String, methods: HashMap<String, Function>) -> Self {
+        Self { name, methods }
     }
 }
 

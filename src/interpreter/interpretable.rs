@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode},
@@ -197,7 +197,22 @@ impl StmtNode {
     /// Handle a class declaration
     fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
         es.environment.borrow_mut().define(&decl.name, None)?;
-        let class = Class::new(decl.name.lexeme.clone());
+        let methods = decl
+            .methods
+            .iter()
+            .map(|method| {
+                (
+                    method.name.lexeme.clone(),
+                    Function::new(
+                        Some(&method.name),
+                        &method.params,
+                        &method.body,
+                        es.environment.clone(),
+                    ),
+                )
+            })
+            .collect::<HashMap<String, Function>>();
+        let class = Class::new(decl.name.lexeme.clone(), methods);
         es.environment
             .borrow_mut()
             .assign(&decl.name, class.into())?;
