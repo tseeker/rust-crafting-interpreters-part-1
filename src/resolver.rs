@@ -328,7 +328,7 @@ impl VarResolver for ExprNode {
         'a: 'b,
     {
         match self {
-            ExprNode::Variable(var_expr) => rs.resolve_use(var_expr),
+            ExprNode::Variable(var_expr) | ExprNode::This(var_expr) => rs.resolve_use(var_expr),
 
             ExprNode::Assignment { name, value, id } => {
                 value.resolve(rs)?;
