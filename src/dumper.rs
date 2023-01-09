@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use crate::{
-    ast::{ExprNode, ProgramNode, StmtNode},
+    ast::{BinaryExpr, ExprNode, ProgramNode, StmtNode},
     tokens::Token,
 };
 
@@ -181,6 +181,14 @@ fn dump_expression(expr: &ExprNode) -> Dumper {
     dumper
 }
 
+fn dump_binary_expr(dumper: &mut Dumper, binary_expr: &BinaryExpr) {
+    dump_expr_node(dumper, &binary_expr.left);
+    dumper.current_line().push(' ');
+    dumper.current_line().push_str(&binary_expr.operator.lexeme);
+    dumper.current_line().push(' ');
+    dump_expr_node(dumper, &binary_expr.right);
+}
+
 fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
     match expr {
         ExprNode::Assignment { name, value, id: _ } => {
@@ -191,29 +199,8 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             dump_expr_node(dumper, value);
         }
 
-        ExprNode::Logical {
-            left,
-            operator,
-            right,
-        } => {
-            dump_expr_node(dumper, left);
-            dumper.current_line().push(' ');
-            dumper.current_line().push_str(&operator.lexeme);
-            dumper.current_line().push(' ');
-            dump_expr_node(dumper, right);
-        }
-
-        ExprNode::Binary {
-            left,
-            operator,
-            right,
-        } => {
-            dump_expr_node(dumper, left);
-            dumper.current_line().push(' ');
-            dumper.current_line().push_str(&operator.lexeme);
-            dumper.current_line().push(' ');
-            dump_expr_node(dumper, right);
-        }
+        ExprNode::Logical(binary_expr) => dump_binary_expr(dumper, binary_expr),
+        ExprNode::Binary(binary_expr) => dump_binary_expr(dumper, binary_expr),
 
         ExprNode::Unary { operator, right } => {
             dumper.current_line().push_str(&operator.lexeme);

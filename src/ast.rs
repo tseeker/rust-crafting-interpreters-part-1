@@ -94,6 +94,17 @@ pub struct SetExpr {
     pub value: Box<ExprNode>,
 }
 
+/// A binary expression.
+#[derive(Debug, Clone)]
+pub struct BinaryExpr {
+    /// The left side expression
+    pub left: Box<ExprNode>,
+    /// The operator
+    pub operator: Token,
+    /// The right side expression
+    pub right: Box<ExprNode>,
+}
+
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
@@ -106,18 +117,10 @@ pub enum ExprNode {
     },
 
     /// Logical binary expression.
-    Logical {
-        left: Box<ExprNode>,
-        operator: Token,
-        right: Box<ExprNode>,
-    },
+    Logical(BinaryExpr),
 
     /// Binary expression.
-    Binary {
-        left: Box<ExprNode>,
-        operator: Token,
-        right: Box<ExprNode>,
-    },
+    Binary(BinaryExpr),
 
     /// Unary expression.
     Unary {
