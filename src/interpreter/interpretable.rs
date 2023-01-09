@@ -333,20 +333,24 @@ impl Interpretable for ExprNode {
                 es.assign_var(name, id, value)?;
                 Ok(InterpreterFlowControl::default())
             }
-            ExprNode::Logical {
-                left,
-                operator,
-                right,
-            } => self.on_logic(es, left, operator, right),
-            ExprNode::Binary {
-                left,
-                operator,
-                right,
-            } => self.on_binary(es, left, operator, right),
+            ExprNode::Logical(binary_expr) => self.on_logic(
+                es,
+                &binary_expr.left,
+                &binary_expr.operator,
+                &binary_expr.right,
+            ),
+            ExprNode::Binary(binary_expr) => self.on_binary(
+                es,
+                &binary_expr.left,
+                &binary_expr.operator,
+                &binary_expr.right,
+            ),
             ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
             ExprNode::Grouping { expression } => expression.interpret(es),
             ExprNode::Litteral { value } => self.on_litteral(value),
-            ExprNode::Variable { name, id } => Ok(es.lookup_var(name, id)?.into()),
+            ExprNode::Variable(var_expr) => {
+                Ok(es.lookup_var(&var_expr.token, &var_expr.id)?.into())
+            }
             ExprNode::Call {
                 callee,
                 right_paren,
