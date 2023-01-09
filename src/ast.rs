@@ -83,6 +83,17 @@ pub struct GetExpr {
     pub name: Token,
 }
 
+/// A setter expression.
+#[derive(Debug, Clone)]
+pub struct SetExpr {
+    /// The instance being accessed.
+    pub instance: Box<ExprNode>,
+    /// The name of the property.
+    pub name: Token,
+    /// The value to set
+    pub value: Box<ExprNode>,
+}
+
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
@@ -146,4 +157,6 @@ pub enum ExprNode {
 
     /// A get expression.
     Get(GetExpr),
+    /// A set expression.
+    Set(SetExpr),
 }
