@@ -217,8 +217,8 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             dumper.current_line().push_str(&value.lexeme);
         }
 
-        ExprNode::Variable { name, id: _ } => {
-            dumper.current_line().push_str(&name.lexeme);
+        ExprNode::Variable(var) => {
+            dumper.current_line().push_str(&var.token.lexeme);
         }
 
         ExprNode::Lambda { params, body } => {

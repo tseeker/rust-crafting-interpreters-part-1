@@ -105,6 +105,15 @@ pub struct BinaryExpr {
     pub right: Box<ExprNode>,
 }
 
+/// A variable reference expression.
+#[derive(Debug, Clone)]
+pub struct VariableExpr {
+    /// The name of the variable, or the "this" keyword.
+    pub token: Token,
+    /// Identifier used for variable resolution.
+    pub id: usize,
+}
+
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
@@ -135,11 +144,7 @@ pub enum ExprNode {
     Litteral { value: Token },
 
     /// A reference to a variable.
-    Variable {
-        name: Token,
-        /// Identifier used for variable resolution.
-        id: usize,
-    },
+    Variable(VariableExpr),
 
     /// A lambda function.
     Lambda {
