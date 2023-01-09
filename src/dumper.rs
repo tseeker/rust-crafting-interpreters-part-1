@@ -264,7 +264,11 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             dumper.current_line().push(')');
         }
 
-        ExprNode::Get(_) => todo!(),
+        ExprNode::Get(get_expr) => {
+            dump_expr_node(dumper, &get_expr.instance);
+            dumper.current_line().push('.');
+            dumper.current_line().push_str(&get_expr.name.lexeme);
+        }
     }
 }
 
