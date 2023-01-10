@@ -117,6 +117,11 @@ impl Environment {
         }
     }
 
+    /// Set a variable in an environment, directly, without any checks.
+    pub fn set(&mut self, name: &str, value: Value) {
+        self.values.insert(name.to_owned(), Some(value));
+    }
+
     /// Read an ancestor from the chain of enclosing environments.
     fn ancestor(&self, distance: usize) -> EnvironmentRef {
         let mut ancestor = self.enclosing.clone().expect("ancestor() called at root");

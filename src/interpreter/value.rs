@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use super::{
-    classes::{Class, ClassRef, Instance, BoundMethod},
+    classes::{Class, ClassRef, Instance},
     functions::Function,
     native_fn::NativeFunction,
     Callable,
@@ -23,7 +23,6 @@ pub enum Object {
     LoxFunction(Function),
     Class(ClassRef),
     Instance(Instance),
-    BoundMethod(BoundMethod),
 }
 
 /* -------------------- *
@@ -57,7 +56,6 @@ impl Value {
             Object::LoxFunction(func) => fok(func),
             Object::Class(class) => fok(class),
             Object::Instance(_) => ferr(),
-            Object::BoundMethod(bm) => fok(bm),
         }
     }
 
@@ -150,12 +148,6 @@ impl From<Instance> for Value {
     }
 }
 
-impl From<BoundMethod> for Value {
-    fn from(value: BoundMethod) -> Self {
-        Value::Object(Rc::new(RefCell::new(Object::BoundMethod(value))))
-    }
-}
-
 /* --------------------- *
  * Object implementation *
  * --------------------- */
@@ -167,7 +159,6 @@ impl Display for Object {
             Object::LoxFunction(func) => func.fmt(f),
             Object::Class(cls) => cls.borrow().fmt(f),
             Object::Instance(inst) => inst.fmt(f),
-            Object::BoundMethod(bm) => bm.fmt(f),
         }
     }
 }

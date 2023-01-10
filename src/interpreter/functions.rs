@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, cell::RefMut};
 
 use itertools::izip;
 
@@ -32,8 +32,17 @@ impl Function {
         }
     }
 
-    pub(super) fn name(&self) -> Option<&Token> {
-        self.name.as_ref()
+    pub(super) fn copy_with_child_env(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            params: self.params.clone(),
+            body: self.body.clone(),
+            env: Environment::create_child(&self.env),
+        }
+    }
+
+    pub(super) fn env(&self) -> RefMut<Environment> {
+        self.env.borrow_mut()
     }
 }
 
