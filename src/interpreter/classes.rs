@@ -7,6 +7,13 @@ use crate::{
 
 use super::{functions::Function, Callable, InterpreterState, Value};
 
+/// This trait represents an object on which getters and setters
+/// must be supported.
+pub trait PropertyCarrier {
+    fn get(&self, name: &Token) -> SloxResult<Value>;
+    fn set(&self, name: &Token, value: Value);
+}
+
 /// A Lox class.
 #[derive(Debug, Clone)]
 pub struct Class {
@@ -24,9 +31,18 @@ pub struct Instance {
     fields: RefCell<HashMap<String, Value>>,
 }
 
+/// Helper type used to refer to instances.
+pub type InstanceRef = Rc<RefCell<Instance>>;
+
 /* -------------------- *
  * Class implementation *
  * -------------------- */
+
+fn bind_method(method: &Function, this_value: Value) -> Function {
+    let bm = method.copy_with_child_env();
+    bm.env().set("this", this_value);
+    bm
+}
 
 impl Class {
     /// Create a new class, specifying its name.
@@ -57,7 +73,7 @@ impl Callable for ClassRef {
         if let Some(init) = self.borrow().methods.get("init") {
             inst_value.with_instance(
                 |instance| {
-                    let bound_init = instance.bind_method(init, &inst_value);
+                    let bound_init = bind_method(init, inst_value.clone());
                     bound_init.call(itpr_state, arguments)
                 },
                 || panic!("Instance is not an instance, wtf"),
@@ -79,13 +95,22 @@ impl Instance {
             fields: RefCell::new(HashMap::default()),
         }
     }
+}
 
-    pub(super) fn get(&self, this_value: &Value, name: &Token) -> SloxResult<Value> {
-        if let Some(value) = self.fields.borrow().get(&name.lexeme) {
+impl Display for Instance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("<Instance of {}>", self.class.borrow(),))
+    }
+}
+
+impl PropertyCarrier for InstanceRef {
+    fn get(&self, name: &Token) -> SloxResult<Value> {
+        let instance = self.borrow();
+        if let Some(value) = instance.fields.borrow().get(&name.lexeme) {
             return Ok(value.clone());
         }
-        if let Some(method) = self.class.borrow().methods.get(&name.lexeme) {
-            let bound_method = self.bind_method(method, this_value);
+        if let Some(method) = instance.class.borrow().methods.get(&name.lexeme) {
+            let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
         }
 
@@ -96,19 +121,11 @@ impl Instance {
         ))
     }
 
-    pub(super) fn set(&self, name: &Token, value: Value) {
-        self.fields.borrow_mut().insert(name.lexeme.clone(), value);
-    }
-
-    fn bind_method(&self, method: &Function, this_value: &Value) -> Function {
-        let bm = method.copy_with_child_env();
-        bm.env().set("this", this_value.clone());
-        bm
-    }
-}
-
-impl Display for Instance {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("<Instance of {}>", self.class.borrow(),))
+    fn set(&self, name: &Token, value: Value) {
+        let instance = self.borrow();
+        instance
+            .fields
+            .borrow_mut()
+            .insert(name.lexeme.clone(), value);
     }
 }

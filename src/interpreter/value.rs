@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use super::{
-    classes::{Class, ClassRef, Instance},
+    classes::{Class, ClassRef, Instance, InstanceRef},
     functions::Function,
     native_fn::NativeFunction,
     Callable,
@@ -22,7 +22,7 @@ pub enum Object {
     NativeFunction(NativeFunction),
     LoxFunction(Function),
     Class(ClassRef),
-    Instance(Instance),
+    Instance(InstanceRef),
 }
 
 /* -------------------- *
@@ -63,7 +63,7 @@ impl Value {
     /// contain an instance, an error function will be called instead.
     pub fn with_instance<Fok, Ferr, Rt>(&self, fok: Fok, ferr: Ferr) -> Rt
     where
-        Fok: FnOnce(&Instance) -> Rt,
+        Fok: FnOnce(&InstanceRef) -> Rt,
         Ferr: FnOnce() -> Rt,
     {
         let obj = match self {
@@ -127,6 +127,12 @@ impl From<ClassRef> for Value {
 
 impl From<Instance> for Value {
     fn from(value: Instance) -> Self {
+        Value::from(Rc::new(RefCell::new(value)))
+    }
+}
+
+impl From<InstanceRef> for Value {
+    fn from(value: InstanceRef) -> Self {
         Value::Object(Rc::new(RefCell::new(Object::Instance(value))))
     }
 }
@@ -141,7 +147,7 @@ impl Display for Object {
             Object::NativeFunction(func) => func.fmt(f),
             Object::LoxFunction(func) => func.fmt(f),
             Object::Class(cls) => cls.borrow().fmt(f),
-            Object::Instance(inst) => inst.fmt(f),
+            Object::Instance(inst) => inst.borrow().fmt(f),
         }
     }
 }

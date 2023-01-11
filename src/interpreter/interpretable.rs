@@ -7,7 +7,7 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
-use super::{classes::Class, functions::Function, Environment, EnvironmentRef, Value};
+use super::{classes::{Class, PropertyCarrier}, functions::Function, Environment, EnvironmentRef, Value};
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(ast: &ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
@@ -541,7 +541,7 @@ impl ExprNode {
     ) -> InterpreterResult {
         let instance = get_expr.instance.interpret(itpr_state)?.result();
         instance.with_instance(
-            |inst| inst.get(&instance, &get_expr.name).map(|v| v.into()),
+            |inst| inst.get(&get_expr.name).map(|v| v.into()),
             || error(&get_expr.name, "only instances have properties"),
         )
     }
