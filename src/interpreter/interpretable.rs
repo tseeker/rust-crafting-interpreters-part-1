@@ -553,7 +553,7 @@ impl ExprNode {
         set_expr: &SetExpr,
     ) -> InterpreterResult {
         let instance = set_expr.instance.interpret(itpr_state)?.result();
-        instance.with_instance_mut(
+        instance.with_instance(
             |instance| {
                 let value = set_expr.value.interpret(itpr_state)?.result();
                 instance.set(&set_expr.name, value.clone());

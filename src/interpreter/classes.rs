@@ -21,7 +21,7 @@ pub type ClassRef = Rc<RefCell<Class>>;
 #[derive(Debug, Clone)]
 pub struct Instance {
     class: Rc<RefCell<Class>>,
-    fields: HashMap<String, Value>,
+    fields: RefCell<HashMap<String, Value>>,
 }
 
 /* -------------------- *
@@ -76,12 +76,12 @@ impl Instance {
     fn new(class: ClassRef) -> Self {
         Self {
             class,
-            fields: HashMap::default(),
+            fields: RefCell::new(HashMap::default()),
         }
     }
 
     pub(super) fn get(&self, this_value: &Value, name: &Token) -> SloxResult<Value> {
-        if let Some(value) = self.fields.get(&name.lexeme) {
+        if let Some(value) = self.fields.borrow().get(&name.lexeme) {
             return Ok(value.clone());
         }
         if let Some(method) = self.class.borrow().methods.get(&name.lexeme) {
@@ -96,8 +96,8 @@ impl Instance {
         ))
     }
 
-    pub(super) fn set(&mut self, name: &Token, value: Value) {
-        self.fields.insert(name.lexeme.clone(), value);
+    pub(super) fn set(&self, name: &Token, value: Value) {
+        self.fields.borrow_mut().insert(name.lexeme.clone(), value);
     }
 
     fn bind_method(&self, method: &Function, this_value: &Value) -> Function {
