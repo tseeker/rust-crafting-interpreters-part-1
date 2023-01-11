@@ -376,14 +376,20 @@ impl VarResolver for StmtNode {
                 })
                 .and_then(|_| body.resolve(rs)),
 
+            StmtNode::Return { token, value: None } => match rs.current_type() {
+                ScopeType::TopLevel => rs.error(token, "'return' not allowed here"),
+                _ => Ok(()),
+            },
             StmtNode::Return {
-                token: _,
-                value: None,
-            } => Ok(()),
-            StmtNode::Return {
-                token: _,
+                token,
                 value: Some(expr),
-            } => expr.resolve(rs),
+            } => {
+                if !matches!(rs.current_type(), ScopeType::Method | ScopeType::Function) {
+                    rs.error(token, "'return' with value is not allowed here")
+                } else {
+                    expr.resolve(rs)
+                }
+            }
 
             StmtNode::Expression(expr) => expr.resolve(rs),
             StmtNode::Print(expr) => expr.resolve(rs),
