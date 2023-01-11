@@ -44,8 +44,13 @@ enum SymKind {
 /// The type of a scope
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ScopeType {
+    /// The scope is contained by the top-level scope.
     TopLevel,
+    /// The scope is contained by a function.
     Function,
+    /// The scope is contained by an instance initializer.
+    Initializer,
+    /// The scope is contained by a method.
     Method,
 }
 
@@ -269,7 +274,11 @@ where
     methods.iter().try_for_each(|method| {
         rs.with_scope(
             |rs| resolve_function(rs, &method.params, &method.body),
-            ScopeType::Method,
+            if method.name.lexeme == "init" {
+                ScopeType::Initializer
+            } else {
+                ScopeType::Method
+            },
         )
     })
 }
