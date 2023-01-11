@@ -1,4 +1,4 @@
-use std::{fmt::Display, cell::RefMut};
+use std::{cell::RefMut, fmt::Display};
 
 use itertools::izip;
 
@@ -15,6 +15,7 @@ pub struct Function {
     params: Vec<Token>,
     body: Vec<ast::StmtNode>,
     env: EnvironmentRef,
+    is_initializer: bool,
 }
 
 impl Function {
@@ -23,12 +24,14 @@ impl Function {
         params: &[Token],
         body: &[ast::StmtNode],
         environment: EnvironmentRef,
+        is_initializer: bool,
     ) -> Self {
         Self {
             name: name.cloned(),
             params: params.to_owned(),
             body: body.to_owned(),
             env: environment,
+            is_initializer,
         }
     }
 
@@ -38,6 +41,7 @@ impl Function {
             params: self.params.clone(),
             body: self.body.clone(),
             env: Environment::create_child(&self.env),
+            is_initializer: self.is_initializer,
         }
     }
 
@@ -71,11 +75,18 @@ impl Callable for Function {
             let result = stmt.interpret(&mut child)?;
             match result {
                 InterpreterFlowControl::Result(_) => (),
-                InterpreterFlowControl::Return(v) => return Ok(v),
+                InterpreterFlowControl::Return(v) if !self.is_initializer => return Ok(v),
+                InterpreterFlowControl::Return(_) => {
+                    return Ok(itpr_state.environment.borrow().read("this"))
+                }
                 _ => panic!("unexpected flow control {:?}", result),
             }
         }
-        Ok(Value::Nil)
+        if self.is_initializer {
+            Ok(itpr_state.environment.borrow().read("this"))
+        } else {
+            Ok(Value::Nil)
+        }
     }
 }
 

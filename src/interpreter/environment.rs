@@ -122,6 +122,15 @@ impl Environment {
         self.values.insert(name.to_owned(), Some(value));
     }
 
+    /// Read a variable from an environment directly. Panics if the symbol
+    /// does not exist.
+    pub fn read(&self, name: &str) -> Value {
+        match self.values.get(name) {
+            Some(Some(v)) => v.clone(),
+            _ => panic!("Symbol {name} does not exist"),
+        }
+    }
+
     /// Read an ancestor from the chain of enclosing environments.
     fn ancestor(&self, distance: usize) -> EnvironmentRef {
         let mut ancestor = self.enclosing.clone().expect("ancestor() called at root");

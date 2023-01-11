@@ -208,6 +208,7 @@ impl StmtNode {
                         &method.params,
                         &method.body,
                         es.environment.clone(),
+                        method.name.lexeme == "init",
                     ),
                 )
             })
@@ -226,6 +227,7 @@ impl StmtNode {
             &decl.params,
             &decl.body,
             es.environment.clone(),
+            false,
         );
         es.environment
             .borrow_mut()
@@ -357,7 +359,7 @@ impl Interpretable for ExprNode {
                 arguments,
             } => self.on_call(es, callee, right_paren, arguments),
             ExprNode::Lambda { params, body } => {
-                let lambda = Function::new(None, params, body, es.environment.clone());
+                let lambda = Function::new(None, params, body, es.environment.clone(), false);
                 Ok(Value::from(lambda).into())
             }
             ExprNode::Get(get_expr) => self.on_get_expression(es, get_expr),
