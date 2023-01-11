@@ -262,7 +262,7 @@ where
     }
     // Unlike the original Lox, function arguments and function bodies do
     // not use the same environment.
-    rs.with_scope(|rs| body.resolve(rs), ScopeType::Function)
+    rs.with_scope(|rs| body.resolve(rs), rs.current_type())
 }
 
 /// Process all method definitions in a class.
