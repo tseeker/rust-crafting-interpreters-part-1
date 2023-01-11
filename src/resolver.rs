@@ -383,13 +383,13 @@ impl VarResolver for StmtNode {
             StmtNode::Return {
                 token,
                 value: Some(expr),
-            } => {
-                if !matches!(rs.current_type(), ScopeType::Method | ScopeType::Function) {
+            } => match rs.current_type() {
+                ScopeType::TopLevel => rs.error(token, "'return' not allowed here"),
+                ScopeType::Initializer => {
                     rs.error(token, "'return' with value is not allowed here")
-                } else {
-                    expr.resolve(rs)
                 }
-            }
+                _ => expr.resolve(rs),
+            },
 
             StmtNode::Expression(expr) => expr.resolve(rs),
             StmtNode::Print(expr) => expr.resolve(rs),
