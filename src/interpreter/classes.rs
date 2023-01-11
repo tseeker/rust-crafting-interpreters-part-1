@@ -2,11 +2,10 @@ use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
 use crate::{
     errors::{ErrorKind, SloxError, SloxResult},
-    interpreter::EnvironmentRef,
-    tokens::{Token, TokenType},
+    tokens::Token,
 };
 
-use super::{functions::Function, Callable, Environment, InterpreterState, Value};
+use super::{functions::Function, Callable, InterpreterState, Value};
 
 /// A Lox class.
 #[derive(Debug, Clone)]
@@ -23,13 +22,6 @@ pub type ClassRef = Rc<RefCell<Class>>;
 pub struct Instance {
     class: Rc<RefCell<Class>>,
     fields: HashMap<String, Value>,
-}
-
-/// A method bound to an instance.
-#[derive(Debug, Clone)]
-pub struct BoundMethod {
-    instance: Value,
-    method: String,
 }
 
 /* -------------------- *
