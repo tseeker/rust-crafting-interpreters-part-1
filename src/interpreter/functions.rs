@@ -77,13 +77,13 @@ impl Callable for Function {
                 InterpreterFlowControl::Result(_) => (),
                 InterpreterFlowControl::Return(v) if !self.is_initializer => return Ok(v),
                 InterpreterFlowControl::Return(_) => {
-                    return Ok(itpr_state.environment.borrow().read("this"))
+                    return Ok(self.env.borrow().read("this"))
                 }
                 _ => panic!("unexpected flow control {:?}", result),
             }
         }
         if self.is_initializer {
-            Ok(itpr_state.environment.borrow().read("this"))
+            Ok(self.env.borrow().read("this"))
         } else {
             Ok(Value::Nil)
         }

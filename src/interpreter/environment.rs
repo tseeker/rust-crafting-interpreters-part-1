@@ -5,7 +5,10 @@ use crate::{
     tokens::Token,
 };
 
-use super::{Value, native_fn::{self, NativeFunction}};
+use super::{
+    native_fn::{self, NativeFunction},
+    Value,
+};
 
 /// A mutable reference to an environment.
 pub(super) type EnvironmentRef = Rc<RefCell<Environment>>;
@@ -127,7 +130,7 @@ impl Environment {
     pub fn read(&self, name: &str) -> Value {
         match self.values.get(name) {
             Some(Some(v)) => v.clone(),
-            _ => panic!("Symbol {name} does not exist"),
+            _ => panic!("Symbol {name} does not exist ({:?})", self.values.keys()),
         }
     }
 
