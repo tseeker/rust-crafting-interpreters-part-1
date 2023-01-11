@@ -15,7 +15,7 @@ pub type ResolvedVariables = HashMap<usize, usize>;
 pub fn resolve_variables(program: &ProgramNode) -> SloxResult<ResolvedVariables> {
     let mut state = ResolverState::default();
     state
-        .with_scope(|rs| program.resolve(rs))
+        .with_scope(|rs| program.resolve(rs), ScopeType::TopLevel)
         .map(|_| state.resolved)
 }
 
@@ -41,6 +41,14 @@ enum SymKind {
     This,
 }
 
+/// The type of a scope
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ScopeType {
+    TopLevel,
+    Function,
+    Method,
+}
+
 /// General information about a symbol.
 #[derive(Clone, Debug)]
 struct SymInfo<'a> {
@@ -49,33 +57,59 @@ struct SymInfo<'a> {
     state: SymState,
 }
 
+/// A resolver scope.
+#[derive(Clone, Debug)]
+struct SymScope<'a> {
+    /// The type of scope we are in.
+    scope_type: ScopeType,
+    /// The symbols that are defined inside the current scope.
+    symbols: HashMap<String, SymInfo<'a>>,
+}
+
 /// The state of the resolver.
 #[derive(Default)]
 struct ResolverState<'a> {
     /// The stack of scopes. Each scope maps symbols to information which
     /// includes the kind of symbol it is and its current state.
-    scopes: Vec<HashMap<String, SymInfo<'a>>>,
+    scopes: Vec<SymScope<'a>>,
     /// The result of the resolver pass.
     resolved: ResolvedVariables,
+}
+
+impl<'a> SymScope<'a> {
+    /// Initialize a new scope of the specified type.
+    fn new(scope_type: ScopeType) -> Self {
+        Self {
+            scope_type,
+            symbols: HashMap::default(),
+        }
+    }
 }
 
 impl<'a> ResolverState<'a> {
     /// Execute some function with a new scope. The scope will be disposed
     /// of after the function has been executed.
-    fn with_scope<F>(&mut self, f: F) -> ResolverResult
+    fn with_scope<F>(&mut self, f: F, scope_type: ScopeType) -> ResolverResult
     where
         F: FnOnce(&mut Self) -> ResolverResult,
     {
-        self.scopes.push(HashMap::new());
+        self.scopes.push(SymScope::new(scope_type));
         let result = f(self).and_then(|_| self.check_unused());
         self.scopes.pop();
         result
+    }
+
+    /// Get the type of the current scope.
+    fn current_type(&self) -> ScopeType {
+        let pos = self.scopes.len() - 1;
+        self.scopes[pos].scope_type
     }
 
     /// Check for unused symbols in the scope. If an unused symbol is found and
     /// its name does not begin with an underscore, generate an error.
     fn check_unused(&self) -> ResolverResult {
         self.scopes[self.scopes.len() - 1]
+            .symbols
             .values()
             .filter(|v| v.state != SymState::Used)
             .filter(|v| v.decl.is_some())
@@ -97,14 +131,14 @@ impl<'a> ResolverState<'a> {
         assert!(!self.scopes.is_empty());
         let idx = self.scopes.len() - 1;
         let scope = &mut self.scopes[idx];
-        if scope.contains_key(&name.lexeme as &str) {
+        if scope.symbols.contains_key(&name.lexeme as &str) {
             Err(SloxError::with_token(
                 ErrorKind::Parse,
                 name,
                 "already a symbol with this name in this scope".to_owned(),
             ))
         } else {
-            scope.insert(
+            scope.symbols.insert(
                 name.lexeme.clone(),
                 SymInfo {
                     decl: Some(name),
@@ -122,7 +156,7 @@ impl<'a> ResolverState<'a> {
         assert!(!self.scopes.is_empty());
         let idx = self.scopes.len() - 1;
         let top = &mut self.scopes[idx];
-        if let Some(info) = top.get_mut(&name.lexeme as &str) {
+        if let Some(info) = top.symbols.get_mut(&name.lexeme as &str) {
             if info.state == SymState::Declared {
                 info.state = SymState::Defined;
             }
@@ -134,8 +168,8 @@ impl<'a> ResolverState<'a> {
         assert!(!self.scopes.is_empty());
         let idx = self.scopes.len() - 1;
         let scope = &mut self.scopes[idx];
-        assert!(!scope.contains_key("this"));
-        scope.insert(
+        assert!(!scope.symbols.contains_key("this"));
+        scope.symbols.insert(
             "this".to_owned(),
             SymInfo {
                 decl: None,
@@ -151,7 +185,7 @@ impl<'a> ResolverState<'a> {
         let mut i = self.scopes.len();
         while i != 0 {
             i -= 1;
-            if let Some(info) = self.scopes[i].get_mut(&expr.token.lexeme as &str) {
+            if let Some(info) = self.scopes[i].symbols.get_mut(&expr.token.lexeme as &str) {
                 if info.state == SymState::Declared {
                     return self.error(&expr.token, "symbol accessed before definition");
                 }
@@ -170,7 +204,7 @@ impl<'a> ResolverState<'a> {
         let mut i = self.scopes.len();
         while i != 0 {
             i -= 1;
-            if let Some(info) = self.scopes[i].get_mut(&name.lexeme as &str) {
+            if let Some(info) = self.scopes[i].symbols.get_mut(&name.lexeme as &str) {
                 if info.kind != SymKind::Variable {
                     return self.error(name, "cannot assign to this symbol");
                 }
@@ -223,7 +257,7 @@ where
     }
     // Unlike the original Lox, function arguments and function bodies do
     // not use the same environment.
-    rs.with_scope(|rs| body.resolve(rs))
+    rs.with_scope(|rs| body.resolve(rs), ScopeType::Function)
 }
 
 /// Process all method definitions in a class.
@@ -233,7 +267,10 @@ where
 {
     rs.define_this();
     methods.iter().try_for_each(|method| {
-        rs.with_scope(|rs| resolve_function(rs, &method.params, &method.body))
+        rs.with_scope(
+            |rs| resolve_function(rs, &method.params, &method.body),
+            ScopeType::Method,
+        )
     })
 }
 
@@ -272,7 +309,7 @@ impl VarResolver for StmtNode {
         'a: 'b,
     {
         match self {
-            StmtNode::Block(stmts) => rs.with_scope(|rs| stmts.resolve(rs)),
+            StmtNode::Block(stmts) => rs.with_scope(|rs| stmts.resolve(rs), rs.current_type()),
 
             StmtNode::VarDecl(name, None) => {
                 rs.declare(name, SymKind::Variable)?;
@@ -288,13 +325,16 @@ impl VarResolver for StmtNode {
             StmtNode::FunDecl(decl) => {
                 rs.declare(&decl.name, SymKind::Function)?;
                 rs.define(&decl.name);
-                rs.with_scope(|rs| resolve_function(rs, &decl.params, &decl.body))
+                rs.with_scope(
+                    |rs| resolve_function(rs, &decl.params, &decl.body),
+                    ScopeType::Function,
+                )
             }
 
             StmtNode::ClassDecl(decl) => {
                 rs.declare(&decl.name, SymKind::Class)?;
                 rs.define(&decl.name);
-                rs.with_scope(|rs| resolve_class(rs, &decl.methods))
+                rs.with_scope(|rs| resolve_class(rs, &decl.methods), rs.current_type())
             }
 
             StmtNode::If {
@@ -360,7 +400,7 @@ impl VarResolver for ExprNode {
             }
 
             ExprNode::Lambda { params, body } => {
-                rs.with_scope(|rs| resolve_function(rs, params, body))
+                rs.with_scope(|rs| resolve_function(rs, params, body), ScopeType::Function)
             }
 
             ExprNode::Logical(binary_expr) | ExprNode::Binary(binary_expr) => binary_expr
