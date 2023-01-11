@@ -232,10 +232,9 @@ where
     'b: 'a,
 {
     rs.define_this();
-    methods
-        .iter()
-        .map(|method| rs.with_scope(|rs| resolve_function(rs, &method.params, &method.body)))
-        .collect()
+    methods.iter().try_for_each(|method| {
+        rs.with_scope(|rs| resolve_function(rs, &method.params, &method.body))
+    })
 }
 
 /// Helper trait used to visit the various AST nodes with the resolver.
