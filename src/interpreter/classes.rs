@@ -45,16 +45,26 @@ impl Display for Class {
 
 impl Callable for ClassRef {
     fn arity(&self) -> usize {
-        0
+        if let Some(init) = self.borrow().methods.get("init") {
+            init.arity()
+        } else {
+            0
+        }
     }
 
-    fn call(
-        &self,
-        _itpr_state: &mut InterpreterState,
-        _arguments: Vec<Value>,
-    ) -> SloxResult<Value> {
-        let instance = Instance::new(self.clone());
-        Ok(Value::from(instance))
+    fn call(&self, itpr_state: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value> {
+        let inst_value = Value::from(Instance::new(self.clone()));
+        if let Some(init) = self.borrow().methods.get("init") {
+            inst_value.with_instance(
+                |instance| {
+                    let bound_init = instance.bind_method(init, &inst_value);
+                    bound_init.call(itpr_state, arguments)
+                },
+                || panic!("Instance is not an instance, wtf"),
+            )
+        } else {
+            Ok(inst_value)
+        }
     }
 }
 
