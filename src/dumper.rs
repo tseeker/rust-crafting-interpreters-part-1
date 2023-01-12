@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use crate::{
-    ast::{BinaryExpr, ExprNode, ProgramNode, StmtNode},
+    ast::{BinaryExpr, ClassMemberDecl, ExprNode, FunDecl, ProgramNode, StmtNode},
     tokens::Token,
 };
 
@@ -45,6 +45,19 @@ fn dump_substatement(dumper: &mut Dumper, statement: &StmtNode) {
     dumper.depth -= depth_change;
 }
 
+fn dump_method(dumper: &mut Dumper, method: &FunDecl, is_static: bool) {
+    dumper.add_line(format!(
+        "{}{} ({}) {{",
+        if is_static { "static " } else { "" },
+        method.name.lexeme,
+        fun_decl_params(&method.params)
+    ));
+    dumper.depth += 1;
+    dump_statement_list(dumper, &method.body);
+    dumper.depth -= 1;
+    dumper.add_line("}".to_owned());
+}
+
 fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
     match stmt {
         StmtNode::VarDecl(name, Some(expr)) => {
@@ -75,18 +88,13 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
 
         StmtNode::ClassDecl(decl) => {
             dumper.add_line(format!("class {} {{", decl.name.lexeme));
-            if !decl.methods.is_empty() {
+            if !decl.members.is_empty() {
                 dumper.depth += 1;
-                for method in decl.methods.iter() {
-                    dumper.add_line(format!(
-                        "{} ({}) {{",
-                        method.name.lexeme,
-                        fun_decl_params(&method.params)
-                    ));
-                    dumper.depth += 1;
-                    dump_statement_list(dumper, &method.body);
-                    dumper.depth -= 1;
-                    dumper.add_line("}".to_owned());
+                for member in decl.members.iter() {
+                    match &member {
+                        ClassMemberDecl::Method(method) => dump_method(dumper, method, false),
+                        ClassMemberDecl::StaticMethod(method) => dump_method(dumper, method, true),
+                    };
                 }
                 dumper.depth -= 1;
                 dumper.add_line(String::default());
