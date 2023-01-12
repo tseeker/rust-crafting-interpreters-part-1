@@ -197,26 +197,41 @@ impl StmtNode {
         Ok(InterpreterFlowControl::default())
     }
 
+    /// Extract methods from a class declaration
+    fn extract_methods<F>(
+        &self,
+        es: &mut InterpreterState,
+        decl: &ClassDecl,
+        filter: F,
+    ) -> HashMap<String, Function>
+    where
+        F: FnMut(&ClassMemberDecl) -> Option<&FunDecl>,
+    {
+        decl.members
+            .iter()
+            .filter_map(filter)
+            .map(|fdecl| {
+                (
+                    fdecl.name.lexeme.clone(),
+                    Function::new(
+                        Some(&fdecl.name),
+                        &fdecl.params,
+                        &fdecl.body,
+                        es.environment.clone(),
+                        fdecl.name.lexeme == "init",
+                    ),
+                )
+            })
+            .collect::<HashMap<String, Function>>()
+    }
+
     /// Handle a class declaration
     fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
         es.environment.borrow_mut().define(&decl.name, None)?;
-        let methods = decl
-            .members
-            .iter()
-            .filter_map(|member| match member {
-                ClassMemberDecl::Method(method) => Some((
-                    method.name.lexeme.clone(),
-                    Function::new(
-                        Some(&method.name),
-                        &method.params,
-                        &method.body,
-                        es.environment.clone(),
-                        method.name.lexeme == "init",
-                    ),
-                )),
-                _ => None,
-            })
-            .collect::<HashMap<String, Function>>();
+        let methods = self.extract_methods(es, decl, |member| match member {
+            ClassMemberDecl::Method(method) => Some(method),
+            _ => None,
+        });
         let class = Class::new(decl.name.lexeme.clone(), methods);
         es.environment
             .borrow_mut()
