@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{ClassMemberDecl, ExprNode, FunDecl, ProgramNode, StmtNode, VariableExpr},
+    ast::{ClassMemberDecl, ExprNode, ProgramNode, StmtNode, VariableExpr},
     errors::{ErrorKind, SloxError, SloxResult},
     tokens::Token,
 };
