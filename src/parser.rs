@@ -229,11 +229,11 @@ impl Parser {
             let static_token = self.expect(&[TokenType::Static]);
             match self.parse_function(FunctionKind::Method)? {
                 StmtNode::FunDecl(d) => {
-                    if let Some(tok) = static_token {
+                    if let Some(tok) = &static_token {
                         if d.name.lexeme == "init" {
                             return Err(SloxError::with_token(
                                 ErrorKind::Parse,
-                                &tok,
+                                tok,
                                 "initializer cannot be declared static".to_owned(),
                             ));
                         }
