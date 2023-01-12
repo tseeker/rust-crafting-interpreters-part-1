@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use crate::{
     ast::{
-        BinaryExpr, ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode,
-        VariableExpr,
+        BinaryExpr, ClassDecl, ClassMemberDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr,
+        StmtNode, VariableExpr,
     },
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
@@ -215,23 +215,30 @@ impl Parser {
         Ok(StmtNode::VarDecl(name, initializer))
     }
 
-    /// Parse the following rule:
+    /// Parse the following rules:
     /// ```
-    /// class := IDENTIFIER "{" function* "}"
+    /// class  := IDENTIFIER "{" member* "}"
+    /// member := "static" function
+    /// member := function
     /// ```
     fn parse_class(&mut self) -> SloxResult<StmtNode> {
         let name = self.consume_identifier("expected class name")?;
         self.consume(&TokenType::LeftBrace, "'{' expected")?;
-        let mut methods = Vec::new();
+        let mut members = Vec::new();
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            let is_static = self.expect(&[TokenType::Static]).is_some();
             match self.parse_function(FunctionKind::Method)? {
-                StmtNode::FunDecl(d) => methods.push(d),
+                StmtNode::FunDecl(d) => members.push(if is_static {
+                    ClassMemberDecl::StaticMethod(d)
+                } else {
+                    ClassMemberDecl::Method(d)
+                }),
                 _ => panic!("Function declaration expected"),
             }
         }
         self.consume(&TokenType::RightBrace, "'}' expected")?;
 
-        Ok(StmtNode::ClassDecl(ClassDecl { name, methods }))
+        Ok(StmtNode::ClassDecl(ClassDecl { name, members }))
     }
 
     /// Parse the following rule:
