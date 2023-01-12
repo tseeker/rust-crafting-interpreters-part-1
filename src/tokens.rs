@@ -40,6 +40,7 @@ pub enum TokenType {
     Or,
     Print,
     Return,
+    Static,
     Super,
     This,
     True,
