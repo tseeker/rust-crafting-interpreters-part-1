@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use super::{
-    classes::{Class, ClassRef, Instance, InstanceRef},
+    classes::{Class, ClassRef, Instance, InstanceRef, PropertyCarrier},
     functions::Function,
     native_fn::NativeFunction,
     Callable,
@@ -71,6 +71,25 @@ impl Value {
             _ => return ferr(),
         };
         match &*obj {
+            Object::Instance(inst) => fok(inst),
+            _ => ferr(),
+        }
+    }
+
+    /// Run some code against a property carrier value (either an instance
+    /// or a class). If the value does not contain such an object, an error
+    /// function will be called instead.
+    pub fn with_property_carrier<Fok, Ferr, Rt>(&self, fok: Fok, ferr: Ferr) -> Rt
+    where
+        Fok: FnOnce(&dyn PropertyCarrier) -> Rt,
+        Ferr: FnOnce() -> Rt,
+    {
+        let obj = match self {
+            Value::Object(obj_ref) => obj_ref.borrow(),
+            _ => return ferr(),
+        };
+        match &*obj {
+            Object::Class(cls) => fok(cls),
             Object::Instance(inst) => fok(inst),
             _ => ferr(),
         }

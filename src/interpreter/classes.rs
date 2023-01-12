@@ -19,6 +19,7 @@ pub trait PropertyCarrier {
 pub struct Class {
     name: String,
     methods: HashMap<String, Function>,
+    fields: RefCell<HashMap<String, Value>>,
 }
 
 /// Classes are mostly used through references.
@@ -47,7 +48,11 @@ fn bind_method(method: &Function, this_value: Value) -> Function {
 impl Class {
     /// Create a new class, specifying its name.
     pub fn new(name: String, methods: HashMap<String, Function>) -> Self {
-        Self { name, methods }
+        Self {
+            name,
+            methods,
+            fields: RefCell::new(HashMap::default()),
+        }
     }
 }
 
@@ -72,7 +77,7 @@ impl Callable for ClassRef {
         let inst_value = Value::from(Instance::new(self.clone()));
         if let Some(init) = self.borrow().methods.get("init") {
             inst_value.with_instance(
-                |instance| {
+                |_| {
                     let bound_init = bind_method(init, inst_value.clone());
                     bound_init.call(itpr_state, arguments)
                 },
@@ -81,6 +86,32 @@ impl Callable for ClassRef {
         } else {
             Ok(inst_value)
         }
+    }
+}
+
+impl PropertyCarrier for ClassRef {
+    fn get(&self, name: &Token) -> SloxResult<Value> {
+        let class = self.borrow();
+        if let Some(value) = class.fields.borrow().get(&name.lexeme) {
+            return Ok(value.clone());
+        }
+        /*
+        if let Some(method) = class.methods.get(&name.lexeme) {
+            let bound_method = bind_method(method, Value::from(self.clone()));
+            return Ok(Value::from(bound_method));
+        }
+        */
+
+        Err(SloxError::with_token(
+            ErrorKind::Runtime,
+            name,
+            "undefined property".to_owned(),
+        ))
+    }
+
+    fn set(&self, name: &Token, value: Value) {
+        let class = self.borrow();
+        class.fields.borrow_mut().insert(name.lexeme.clone(), value);
     }
 }
 

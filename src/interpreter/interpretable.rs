@@ -540,7 +540,7 @@ impl ExprNode {
         get_expr: &GetExpr,
     ) -> InterpreterResult {
         let instance = get_expr.instance.interpret(itpr_state)?.result();
-        instance.with_instance(
+        instance.with_property_carrier(
             |inst| inst.get(&get_expr.name).map(|v| v.into()),
             || error(&get_expr.name, "only instances have properties"),
         )
@@ -553,7 +553,7 @@ impl ExprNode {
         set_expr: &SetExpr,
     ) -> InterpreterResult {
         let instance = set_expr.instance.interpret(itpr_state)?.result();
-        instance.with_instance(
+        instance.with_property_carrier(
             |instance| {
                 let value = set_expr.value.interpret(itpr_state)?.result();
                 instance.set(&set_expr.name, value.clone());
