@@ -1,13 +1,16 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode, VariableExpr},
+    ast::{
+        ClassDecl, ClassMemberDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode,
+        VariableExpr,
+    },
     errors::{ErrorKind, SloxError, SloxResult},
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
 };
 
-use super::{classes::{Class, PropertyCarrier}, functions::Function, Environment, EnvironmentRef, Value};
+use super::{classes::Class, functions::Function, Environment, EnvironmentRef, Value};
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(ast: &ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
@@ -198,10 +201,10 @@ impl StmtNode {
     fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
         es.environment.borrow_mut().define(&decl.name, None)?;
         let methods = decl
-            .methods
+            .members
             .iter()
-            .map(|method| {
-                (
+            .filter_map(|member| match member {
+                ClassMemberDecl::Method(method) => Some((
                     method.name.lexeme.clone(),
                     Function::new(
                         Some(&method.name),
@@ -210,7 +213,8 @@ impl StmtNode {
                         es.environment.clone(),
                         method.name.lexeme == "init",
                     ),
-                )
+                )),
+                _ => None,
             })
             .collect::<HashMap<String, Function>>();
         let class = Class::new(decl.name.lexeme.clone(), methods);
