@@ -25,6 +25,7 @@ lazy_static! {
         keywords.insert("or",       TokenType::Or);
         keywords.insert("print",    TokenType::Print);
         keywords.insert("return",   TokenType::Return);
+        keywords.insert("static",   TokenType::Static);
         keywords.insert("super",    TokenType::Super);
         keywords.insert("this",     TokenType::This);
         keywords.insert("true",     TokenType::True);
