@@ -226,13 +226,24 @@ impl Parser {
         self.consume(&TokenType::LeftBrace, "'{' expected")?;
         let mut members = Vec::new();
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
-            let is_static = self.expect(&[TokenType::Static]).is_some();
+            let static_token = self.expect(&[TokenType::Static]);
             match self.parse_function(FunctionKind::Method)? {
-                StmtNode::FunDecl(d) => members.push(if is_static {
-                    ClassMemberDecl::StaticMethod(d)
-                } else {
-                    ClassMemberDecl::Method(d)
-                }),
+                StmtNode::FunDecl(d) => {
+                    if let Some(tok) = static_token {
+                        if d.name.lexeme == "init" {
+                            return Err(SloxError::with_token(
+                                ErrorKind::Parse,
+                                &tok,
+                                "initializer cannot be declared static".to_owned(),
+                            ));
+                        }
+                    }
+                    members.push(if static_token.is_some() {
+                        ClassMemberDecl::StaticMethod(d)
+                    } else {
+                        ClassMemberDecl::Method(d)
+                    })
+                }
                 _ => panic!("Function declaration expected"),
             }
         }
