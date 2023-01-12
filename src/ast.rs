@@ -16,11 +16,18 @@ pub struct FunDecl {
     pub body: Vec<StmtNode>,
 }
 
+/// The declaration of a class member.
+#[derive(Debug, Clone)]
+pub enum ClassMemberDecl {
+    Method(FunDecl),
+    StaticMethod(FunDecl),
+}
+
 /// A class declaration.
 #[derive(Debug, Clone)]
 pub struct ClassDecl {
     pub name: Token,
-    pub methods: Vec<FunDecl>,
+    pub members: Vec<ClassMemberDecl>,
 }
 
 /// An AST node that represents a statement.
