@@ -19,6 +19,7 @@ pub trait PropertyCarrier {
 pub struct Class {
     name: String,
     methods: HashMap<String, Function>,
+    static_methods: HashMap<String, Function>,
     fields: RefCell<HashMap<String, Value>>,
 }
 
@@ -47,10 +48,15 @@ fn bind_method(method: &Function, this_value: Value) -> Function {
 
 impl Class {
     /// Create a new class, specifying its name.
-    pub fn new(name: String, methods: HashMap<String, Function>) -> Self {
+    pub fn new(
+        name: String,
+        methods: HashMap<String, Function>,
+        static_methods: HashMap<String, Function>,
+    ) -> Self {
         Self {
             name,
             methods,
+            static_methods,
             fields: RefCell::new(HashMap::default()),
         }
     }

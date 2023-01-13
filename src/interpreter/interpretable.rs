@@ -232,7 +232,11 @@ impl StmtNode {
             ClassMemberDecl::Method(method) => Some(method),
             _ => None,
         });
-        let class = Class::new(decl.name.lexeme.clone(), methods);
+        let static_methods = self.extract_methods(es, decl, |member| match member {
+            ClassMemberDecl::StaticMethod(method) => Some(method),
+            _ => None,
+        });
+        let class = Class::new(decl.name.lexeme.clone(), methods, static_methods);
         es.environment
             .borrow_mut()
             .assign(&decl.name, class.into())?;
