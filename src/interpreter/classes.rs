@@ -101,12 +101,10 @@ impl PropertyCarrier for ClassRef {
         if let Some(value) = class.fields.borrow().get(&name.lexeme) {
             return Ok(value.clone());
         }
-        /*
-        if let Some(method) = class.methods.get(&name.lexeme) {
+        if let Some(method) = class.static_methods.get(&name.lexeme) {
             let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
         }
-        */
 
         Err(SloxError::with_token(
             ErrorKind::Runtime,
