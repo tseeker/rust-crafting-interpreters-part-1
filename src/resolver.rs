@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{ClassMemberDecl, ExprNode, ProgramNode, StmtNode, VariableExpr},
@@ -273,10 +273,17 @@ fn resolve_class<'a, 'b>(
 where
     'b: 'a,
 {
+    let mut names = HashSet::new();
     rs.define_this();
     methods.iter().try_for_each(|member| match member {
         ClassMemberDecl::Method(method) | ClassMemberDecl::StaticMethod(method) => rs.with_scope(
-            |rs| resolve_function(rs, &method.params, &method.body),
+            |rs| {
+                if names.insert(method.name.lexeme.clone()) {
+                    resolve_function(rs, &method.params, &method.body)
+                } else {
+                    rs.error(&method.name, "duplicate method name")
+                }
+            },
             if method.name.lexeme == "init" {
                 ScopeType::Initializer
             } else {
