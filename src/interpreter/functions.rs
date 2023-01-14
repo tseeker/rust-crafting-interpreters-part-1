@@ -1,4 +1,7 @@
-use std::{cell::RefMut, fmt::Display};
+use std::{
+    cell::RefMut,
+    fmt::{Debug, Display},
+};
 
 use itertools::izip;
 
@@ -9,7 +12,7 @@ use super::{
 use crate::{ast, errors::SloxResult, tokens::Token};
 
 /// A function implemented in the Lox-ish language.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Function {
     name: Option<Token>,
     params: Vec<Token>,
@@ -50,6 +53,16 @@ impl Function {
     }
 }
 
+impl Debug for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Function {{ name: {:?}, params: {:?}, body: {:?}, is_initializer: {:?} }}",
+            self.name, self.params, self.body, self.is_initializer
+        )
+    }
+}
+
 impl Callable for Function {
     fn arity(&self) -> usize {
         self.params.len()
@@ -76,9 +89,7 @@ impl Callable for Function {
             match result {
                 InterpreterFlowControl::Result(_) => (),
                 InterpreterFlowControl::Return(v) if !self.is_initializer => return Ok(v),
-                InterpreterFlowControl::Return(_) => {
-                    return Ok(self.env.borrow().read("this"))
-                }
+                InterpreterFlowControl::Return(_) => return Ok(self.env.borrow().read("this")),
                 _ => panic!("unexpected flow control {:?}", result),
             }
         }
