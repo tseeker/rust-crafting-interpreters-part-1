@@ -2,8 +2,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{
-        ClassDecl, ClassMemberDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode,
-        VariableExpr,
+        ClassDecl, ClassMemberDecl, ClassMemberKind, ExprNode, FunDecl, GetExpr, ProgramNode,
+        SetExpr, StmtNode, VariableExpr,
     },
     errors::{ErrorKind, SloxError, SloxResult},
     resolver::ResolvedVariables,
@@ -197,25 +197,26 @@ impl StmtNode {
         Ok(InterpreterFlowControl::default())
     }
 
-    /// Extract methods from a class declaration
-    fn extract_methods<F>(
+    /// Extract members from a class declaration, generating a map of
+    /// functions.
+    fn extract_members<F>(
         &self,
         es: &mut InterpreterState,
         decl: &ClassDecl,
         filter: F,
     ) -> HashMap<String, Function>
     where
-        F: FnMut(&ClassMemberDecl) -> Option<&FunDecl>,
+        F: FnMut(&ClassMemberDecl) -> Option<(&FunDecl, &[Token])>,
     {
         decl.members
             .iter()
             .filter_map(filter)
-            .map(|fdecl| {
+            .map(|(fdecl, params)| {
                 (
                     fdecl.name.lexeme.clone(),
                     Function::new(
                         Some(&fdecl.name),
-                        &fdecl.params,
+                        &params,
                         &fdecl.body,
                         es.environment.clone(),
                         fdecl.name.lexeme == "init",
@@ -228,14 +229,20 @@ impl StmtNode {
     /// Handle a class declaration
     fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
         es.environment.borrow_mut().define(&decl.name, None)?;
-        let methods = self.extract_methods(es, decl, |member| match member {
-            ClassMemberDecl::Method(method) => Some(method),
-            _ => None,
-        });
-        let static_methods = self.extract_methods(es, decl, |member| match member {
-            ClassMemberDecl::StaticMethod(method) => Some(method),
-            _ => None,
-        });
+        let methods =
+            self.extract_members(es, decl, |member| match (&member.kind, member.is_static) {
+                (ClassMemberKind::Method, false) => {
+                    Some((&member.fun_decl, &member.fun_decl.params))
+                }
+                _ => None,
+            });
+        let static_methods =
+            self.extract_members(es, decl, |member| match (&member.kind, member.is_static) {
+                (ClassMemberKind::Method, true) => {
+                    Some((&member.fun_decl, &member.fun_decl.params))
+                }
+                _ => None,
+            });
         let class = Class::new(decl.name.lexeme.clone(), methods, static_methods);
         es.environment
             .borrow_mut()
