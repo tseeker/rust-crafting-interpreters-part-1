@@ -1,6 +1,9 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
+use lazy_static::lazy_static;
+
 use crate::{
+    ast::ClassMemberKind,
     errors::{ErrorKind, SloxError, SloxResult},
     tokens::Token,
 };
@@ -14,12 +17,14 @@ pub trait PropertyCarrier {
     fn set(&self, name: &Token, value: Value);
 }
 
+/// The key for the table of class members.
+pub type ClassMemberKey = (ClassMemberKind, bool, String);
+
 /// A Lox class.
 #[derive(Debug, Clone)]
 pub struct Class {
     name: String,
-    methods: HashMap<String, Function>,
-    static_methods: HashMap<String, Function>,
+    members: HashMap<ClassMemberKey, Function>,
     fields: RefCell<HashMap<String, Value>>,
 }
 
@@ -40,6 +45,11 @@ pub type InstanceRef = Rc<RefCell<Instance>>;
  * Class implementation *
  * -------------------- */
 
+lazy_static! {
+    static ref INIT_METHOD_KEY: ClassMemberKey =
+        (ClassMemberKind::Method, false, String::from("init"));
+}
+
 fn bind_method(method: &Function, this_value: Value) -> Function {
     let bm = method.copy_with_child_env();
     bm.env().set("this", this_value);
@@ -48,15 +58,10 @@ fn bind_method(method: &Function, this_value: Value) -> Function {
 
 impl Class {
     /// Create a new class, specifying its name.
-    pub fn new(
-        name: String,
-        methods: HashMap<String, Function>,
-        static_methods: HashMap<String, Function>,
-    ) -> Self {
+    pub fn new(name: String, members: HashMap<ClassMemberKey, Function>) -> Self {
         Self {
             name,
-            methods,
-            static_methods,
+            members,
             fields: RefCell::new(HashMap::default()),
         }
     }
@@ -72,7 +77,7 @@ impl Display for Class {
 
 impl Callable for ClassRef {
     fn arity(&self) -> usize {
-        if let Some(init) = self.borrow().methods.get("init") {
+        if let Some(init) = self.borrow().members.get(&INIT_METHOD_KEY) {
             init.arity()
         } else {
             0
@@ -81,7 +86,7 @@ impl Callable for ClassRef {
 
     fn call(&self, itpr_state: &mut InterpreterState, arguments: Vec<Value>) -> SloxResult<Value> {
         let inst_value = Value::from(Instance::new(self.clone()));
-        if let Some(init) = self.borrow().methods.get("init") {
+        if let Some(init) = self.borrow().members.get(&INIT_METHOD_KEY) {
             inst_value.with_instance(
                 |_| {
                     let bound_init = bind_method(init, inst_value.clone());
@@ -98,10 +103,11 @@ impl Callable for ClassRef {
 impl PropertyCarrier for ClassRef {
     fn get(&self, name: &Token) -> SloxResult<Value> {
         let class = self.borrow();
+        let mut mb_key = (ClassMemberKind::Method, true, name.lexeme.clone());
         if let Some(value) = class.fields.borrow().get(&name.lexeme) {
             return Ok(value.clone());
         }
-        if let Some(method) = class.static_methods.get(&name.lexeme) {
+        if let Some(method) = class.members.get(&mb_key) {
             let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
         }
@@ -141,10 +147,11 @@ impl Display for Instance {
 impl PropertyCarrier for InstanceRef {
     fn get(&self, name: &Token) -> SloxResult<Value> {
         let instance = self.borrow();
+        let mut mb_key = (ClassMemberKind::Method, false, name.lexeme.clone());
         if let Some(value) = instance.fields.borrow().get(&name.lexeme) {
             return Ok(value.clone());
         }
-        if let Some(method) = instance.class.borrow().methods.get(&name.lexeme) {
+        if let Some(method) = instance.class.borrow().members.get(&mb_key) {
             let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
         }

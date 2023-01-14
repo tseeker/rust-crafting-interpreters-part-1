@@ -10,7 +10,11 @@ use crate::{
     tokens::{Token, TokenType},
 };
 
-use super::{classes::Class, functions::Function, Environment, EnvironmentRef, Value};
+use super::{
+    classes::{Class, ClassMemberKey},
+    functions::Function,
+    Environment, EnvironmentRef, Value,
+};
 
 /// Evaluate an interpretable, returning its value.
 pub fn evaluate(ast: &ProgramNode, vars: ResolvedVariables) -> SloxResult<Value> {
@@ -173,6 +177,30 @@ impl Interpretable for StmtNode {
     }
 }
 
+/// Extract members from a class declaration, generating a map of
+/// functions.
+fn extract_members(
+    es: &mut InterpreterState,
+    decl: &ClassDecl,
+) -> HashMap<ClassMemberKey, Function> {
+    decl.members
+        .iter()
+        .map(|member| {
+            let fnd = &member.fun_decl;
+            (
+                (member.kind, member.is_static, fnd.name.lexeme.clone()),
+                Function::new(
+                    Some(&fnd.name),
+                    &fnd.params,
+                    &fnd.body,
+                    es.environment.clone(),
+                    fnd.name.lexeme == "init",
+                ),
+            )
+        })
+        .collect()
+}
+
 impl StmtNode {
     /// Handle the `print` statement.
     fn on_print(&self, es: &mut InterpreterState, expr: &ExprNode) -> InterpreterResult {
@@ -197,53 +225,10 @@ impl StmtNode {
         Ok(InterpreterFlowControl::default())
     }
 
-    /// Extract members from a class declaration, generating a map of
-    /// functions.
-    fn extract_members<F>(
-        &self,
-        es: &mut InterpreterState,
-        decl: &ClassDecl,
-        filter: F,
-    ) -> HashMap<String, Function>
-    where
-        F: FnMut(&ClassMemberDecl) -> Option<(&FunDecl, &[Token])>,
-    {
-        decl.members
-            .iter()
-            .filter_map(filter)
-            .map(|(fdecl, params)| {
-                (
-                    fdecl.name.lexeme.clone(),
-                    Function::new(
-                        Some(&fdecl.name),
-                        &params,
-                        &fdecl.body,
-                        es.environment.clone(),
-                        fdecl.name.lexeme == "init",
-                    ),
-                )
-            })
-            .collect::<HashMap<String, Function>>()
-    }
-
     /// Handle a class declaration
     fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
         es.environment.borrow_mut().define(&decl.name, None)?;
-        let methods =
-            self.extract_members(es, decl, |member| match (&member.kind, member.is_static) {
-                (ClassMemberKind::Method, false) => {
-                    Some((&member.fun_decl, &member.fun_decl.params))
-                }
-                _ => None,
-            });
-        let static_methods =
-            self.extract_members(es, decl, |member| match (&member.kind, member.is_static) {
-                (ClassMemberKind::Method, true) => {
-                    Some((&member.fun_decl, &member.fun_decl.params))
-                }
-                _ => None,
-            });
-        let class = Class::new(decl.name.lexeme.clone(), methods, static_methods);
+        let class = Class::new(decl.name.lexeme.clone(), extract_members(es, decl));
         es.environment
             .borrow_mut()
             .assign(&decl.name, class.into())?;
