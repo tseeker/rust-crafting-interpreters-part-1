@@ -268,24 +268,12 @@ where
 /// Determine which error should be returned if the specified class member is
 /// a duplicate.
 fn class_member_uniqueness_error(member: &ClassMemberDecl) -> &'static str {
-    match (member.kind, member.is_static) {
+    match (&member.kind, member.is_static) {
         (ClassMemberKind::Method, _) => "duplicate method",
         (ClassMemberKind::Getter, true) => "duplicate static property getter",
         (ClassMemberKind::Getter, false) => "duplicate property getter",
         (ClassMemberKind::Setter, true) => "duplicate static property setter",
         (ClassMemberKind::Setter, false) => "duplicate property setter",
-    }
-}
-
-/// Determine the parameters that will be used when "calling" the specified
-/// class member. Methods will follow the parameters specification, getters
-/// will receive no parameters, and setters will receive a parameter named
-/// after the setter itself.
-fn class_member_parameters(member: &ClassMemberDecl) -> &[Token] {
-    match member.kind {
-        ClassMemberKind::Method => &member.fun_decl.params,
-        ClassMemberKind::Getter => &[],
-        ClassMemberKind::Setter => &[member.fun_decl.name],
     }
 }
 
@@ -295,7 +283,10 @@ fn resolve_class_member<'a, 'b>(
     rs: &mut ResolverState<'a>,
     member: &'b ClassMemberDecl,
     uniqueness: &mut HashSet<(ClassMemberKind, bool, String)>,
-) -> ResolverResult {
+) -> ResolverResult
+where
+    'b: 'a,
+{
     let is_init = member.kind == ClassMemberKind::Method
         && !member.is_static
         && member.fun_decl.name.lexeme == "init";
@@ -310,7 +301,7 @@ fn resolve_class_member<'a, 'b>(
 
     if uniqueness.insert((member.kind, static_key, member.fun_decl.name.lexeme.clone())) {
         rs.with_scope(
-            |rs| resolve_function(rs, class_member_parameters(member), &member.fun_decl.body),
+            |rs| resolve_function(rs, &member.fun_decl.params, &member.fun_decl.body),
             scope_type,
         )
     } else {
