@@ -162,10 +162,10 @@ impl Parser {
                 self.current -= 1;
                 self.parse_expression_stmt()
             } else {
-                self.parse_function(FunctionKind::Function)
+                self.parse_function()
             }
         } else if self.expect(&[TokenType::LeftBrace]).is_some() {
-            self.parse_block()
+            self.parse_block_contents()
         } else if self.expect(&[TokenType::Address]).is_some() {
             self.parse_labelled_loop()
         } else if self.expect(&[TokenType::If]).is_some() {
@@ -217,9 +217,11 @@ impl Parser {
 
     /// Parse the following rules:
     /// ```
-    /// class  := IDENTIFIER "{" member* "}"
-    /// member := "static" function
-    /// member := function
+    /// class      := IDENTIFIER "{" member* "}"
+    /// member     := "static"? gen_member
+    /// gen_member := IDENTIFIER function_info
+    /// gen_member := IDENTIFIER ">" block
+    /// gen_member := IDENTIFIER "<" block
     /// ```
     fn parse_class(&mut self) -> SloxResult<StmtNode> {
         let name = self.consume_identifier("expected class name")?;
@@ -227,25 +229,31 @@ impl Parser {
         let mut members = Vec::new();
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
             let static_token = self.expect(&[TokenType::Static]);
-            match self.parse_function(FunctionKind::Method)? {
-                StmtNode::FunDecl(d) => {
-                    if let Some(tok) = &static_token {
-                        if d.name.lexeme == "init" {
-                            return Err(SloxError::with_token(
-                                ErrorKind::Parse,
-                                tok,
-                                "initializer cannot be declared static".to_owned(),
-                            ));
-                        }
-                    }
-                    members.push(ClassMemberDecl {
-                        kind: ClassMemberKind::Method,
-                        is_static: static_token.is_some(),
-                        fun_decl: d,
-                    });
-                }
-                _ => panic!("Function declaration expected"),
-            }
+            let identifier = self.consume_identifier("member identifier expected")?;
+            let accessor = self.expect(&[TokenType::Less, TokenType::Greater]);
+            let (kind, params, body) = if let Some(acc_token) = accessor {
+                let body = self
+                    .parse_block("'{{' expected before accessor body")?
+                    .extract_block_statements();
+                let (kind, params) = match acc_token.token_type {
+                    TokenType::Greater => (ClassMemberKind::Getter, vec![]),
+                    TokenType::Less => (ClassMemberKind::Setter, vec![identifier.clone()]),
+                    _ => panic!("unexpected accessor token {:?}", acc_token),
+                };
+                (kind, params, body)
+            } else {
+                let (params, body) = self.parse_function_info(FunctionKind::Method)?;
+                (ClassMemberKind::Method, params, body)
+            };
+            members.push(ClassMemberDecl {
+                kind,
+                is_static: static_token.is_some(),
+                fun_decl: FunDecl {
+                    name: identifier,
+                    params,
+                    body,
+                },
+            });
         }
         self.consume(&TokenType::RightBrace, "'}' expected")?;
 
@@ -257,9 +265,9 @@ impl Parser {
     /// function        := IDENTIFIER function_info
     /// ```
     /// The `kind` parameter is used to generate error messages.
-    fn parse_function(&mut self, kind: FunctionKind) -> SloxResult<StmtNode> {
-        let name = self.consume_identifier(&format!("expected {} name", kind.name()))?;
-        let (params, block) = self.parse_function_info(kind)?;
+    fn parse_function(&mut self) -> SloxResult<StmtNode> {
+        let name = self.consume_identifier("expected function name")?;
+        let (params, block) = self.parse_function_info(FunctionKind::Function)?;
         Ok(StmtNode::FunDecl(FunDecl {
             name,
             params,
@@ -307,24 +315,27 @@ impl Parser {
         }
 
         // Read the function's body
-        self.consume(
-            &TokenType::LeftBrace,
-            &format!("'{{' expected before {} body", kind.name()),
-        )?;
-        let block = {
-            self.loop_state.push(LoopParsingState::None);
-            let result = self.parse_block();
-            self.loop_state.pop();
-            result?
-        };
+        let block = self.parse_block(&format!("'{{' expected before {} body", kind.name()))?;
         Ok((params, block.extract_block_statements()))
     }
 
     /// Parse the following rule:
     /// ```
-    /// block := "{" statement* "}"
+    /// block := "{" block_contents
     /// ```
-    fn parse_block(&mut self) -> SloxResult<StmtNode> {
+    fn parse_block(&mut self, err_string: &str) -> Result<StmtNode, SloxError> {
+        self.consume(&TokenType::LeftBrace, &err_string)?;
+        self.loop_state.push(LoopParsingState::None);
+        let result = self.parse_block_contents();
+        self.loop_state.pop();
+        result
+    }
+
+    /// Parse the following rule:
+    /// ```
+    /// block_contents := statement* "}"
+    /// ```
+    fn parse_block_contents(&mut self) -> SloxResult<StmtNode> {
         let mut stmts: Vec<StmtNode> = Vec::new();
         while !(self.check(&TokenType::RightBrace) || self.is_at_end()) {
             stmts.push(self.parse_statement()?);
