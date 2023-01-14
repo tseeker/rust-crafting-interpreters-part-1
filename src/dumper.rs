@@ -1,7 +1,9 @@
 use std::fmt::Write;
 
 use crate::{
-    ast::{BinaryExpr, ClassMemberDecl, ExprNode, FunDecl, ProgramNode, StmtNode},
+    ast::{
+        BinaryExpr, ClassMemberDecl, ExprNode, FunDecl, ProgramNode, PropertyAccessor, StmtNode,
+    },
     tokens::Token,
 };
 
@@ -58,6 +60,24 @@ fn dump_method(dumper: &mut Dumper, method: &FunDecl, is_static: bool) {
     dumper.add_line("}".to_owned());
 }
 
+fn dump_accessor(
+    dumper: &mut Dumper,
+    accessor: &PropertyAccessor,
+    is_setter: bool,
+    is_static: bool,
+) {
+    dumper.add_line(format!(
+        "{}{} {} {{",
+        if is_static { "static " } else { "" },
+        accessor.name.lexeme,
+        if is_setter { "<" } else { ">" },
+    ));
+    dumper.depth += 1;
+    dump_statement_list(dumper, &accessor.body);
+    dumper.depth -= 1;
+    dumper.add_line("}".to_owned());
+}
+
 fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
     match stmt {
         StmtNode::VarDecl(name, Some(expr)) => {
@@ -94,6 +114,18 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
                     match &member {
                         ClassMemberDecl::Method(method) => dump_method(dumper, method, false),
                         ClassMemberDecl::StaticMethod(method) => dump_method(dumper, method, true),
+                        ClassMemberDecl::PropertyGetter(accessor) => {
+                            dump_accessor(dumper, accessor, false, false)
+                        }
+                        ClassMemberDecl::PropertySetter(accessor) => {
+                            dump_accessor(dumper, accessor, true, false)
+                        }
+                        ClassMemberDecl::StaticPropertyGetter(accessor) => {
+                            dump_accessor(dumper, accessor, false, true)
+                        }
+                        ClassMemberDecl::StaticPropertySetter(accessor) => {
+                            dump_accessor(dumper, accessor, true, true)
+                        }
                     };
                 }
                 dumper.depth -= 1;
