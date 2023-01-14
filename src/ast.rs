@@ -26,7 +26,9 @@ pub enum ClassMemberDecl {
 /// A class declaration.
 #[derive(Debug, Clone)]
 pub struct ClassDecl {
+    /// The token that represents the name of the class.
     pub name: Token,
+    /// The list of class members.
     pub members: Vec<ClassMemberDecl>,
 }
 
