@@ -134,7 +134,7 @@ impl PropertyCarrier for ClassRef {
         let class = self.borrow();
 
         // Check for a property setter.
-        let mb_key = (ClassMemberKind::Setter, false, name.lexeme.clone());
+        let mb_key = (ClassMemberKind::Setter, true, name.lexeme.clone());
         if let Some(setter) = class.members.get(&mb_key) {
             // Bind and execute the property setter
             let bound_method = bind_method(setter, Value::from(self.clone()));
