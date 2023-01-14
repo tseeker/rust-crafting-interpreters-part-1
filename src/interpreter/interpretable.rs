@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{
-        ClassDecl, ClassMemberDecl, ClassMemberKind, ExprNode, FunDecl, GetExpr, ProgramNode,
+        ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode,
         SetExpr, StmtNode, VariableExpr,
     },
     errors::{ErrorKind, SloxError, SloxResult},
@@ -556,8 +556,8 @@ impl ExprNode {
     ) -> InterpreterResult {
         let instance = get_expr.instance.interpret(itpr_state)?.result();
         instance.with_property_carrier(
-            |inst| inst.get(&get_expr.name).map(|v| v.into()),
-            || error(&get_expr.name, "only instances have properties"),
+            |inst| inst.get(itpr_state, &get_expr.name).map(|v| v.into()),
+            || error(&get_expr.name, "this object doesn't have properties"),
         )
     }
 
@@ -571,10 +571,10 @@ impl ExprNode {
         instance.with_property_carrier(
             |instance| {
                 let value = set_expr.value.interpret(itpr_state)?.result();
-                instance.set(&set_expr.name, value.clone());
+                instance.set(itpr_state, &set_expr.name, value.clone());
                 Ok(value.into())
             },
-            || error(&set_expr.name, "only instances have properties"),
+            || error(&set_expr.name, "this object doesn't have properties"),
         )
     }
 }

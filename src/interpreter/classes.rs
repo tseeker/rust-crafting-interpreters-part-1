@@ -13,8 +13,8 @@ use super::{functions::Function, Callable, InterpreterState, Value};
 /// This trait represents an object on which getters and setters
 /// must be supported.
 pub trait PropertyCarrier {
-    fn get(&self, name: &Token) -> SloxResult<Value>;
-    fn set(&self, name: &Token, value: Value);
+    fn get(&self, itpr_state: &mut InterpreterState, name: &Token) -> SloxResult<Value>;
+    fn set(&self, itpr_state: &mut InterpreterState, name: &Token, value: Value);
 }
 
 /// The key for the table of class members.
@@ -101,12 +101,23 @@ impl Callable for ClassRef {
 }
 
 impl PropertyCarrier for ClassRef {
-    fn get(&self, name: &Token) -> SloxResult<Value> {
+    fn get(&self, itpr_state: &mut InterpreterState, name: &Token) -> SloxResult<Value> {
         let class = self.borrow();
-        let mut mb_key = (ClassMemberKind::Method, true, name.lexeme.clone());
+
+        // Check for a property getter and execute it if found.
+        let mut mb_key = (ClassMemberKind::Getter, true, name.lexeme.clone());
+        if let Some(getter) = class.members.get(&mb_key) {
+            let bound_method = bind_method(getter, Value::from(self.clone()));
+            return bound_method.call(itpr_state, vec![]);
+        }
+
+        // Check for an actual field.
         if let Some(value) = class.fields.borrow().get(&name.lexeme) {
             return Ok(value.clone());
         }
+
+        // Check for a method.
+        mb_key.0 = ClassMemberKind::Method;
         if let Some(method) = class.members.get(&mb_key) {
             let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
@@ -119,8 +130,21 @@ impl PropertyCarrier for ClassRef {
         ))
     }
 
-    fn set(&self, name: &Token, value: Value) {
+    fn set(&self, itpr_state: &mut InterpreterState, name: &Token, value: Value) {
         let class = self.borrow();
+
+        // Check for a property setter.
+        let mb_key = (ClassMemberKind::Setter, false, name.lexeme.clone());
+        if let Some(setter) = class.members.get(&mb_key) {
+            // Bind and execute the property setter
+            let bound_method = bind_method(setter, Value::from(self.clone()));
+            bound_method
+                .call(itpr_state, vec![value])
+                .expect("failed to execute setter");
+            return;
+        }
+
+        // Set the property directly
         class.fields.borrow_mut().insert(name.lexeme.clone(), value);
     }
 }
@@ -145,12 +169,23 @@ impl Display for Instance {
 }
 
 impl PropertyCarrier for InstanceRef {
-    fn get(&self, name: &Token) -> SloxResult<Value> {
+    fn get(&self, itpr_state: &mut InterpreterState, name: &Token) -> SloxResult<Value> {
         let instance = self.borrow();
-        let mut mb_key = (ClassMemberKind::Method, false, name.lexeme.clone());
+
+        // Check for a property getter and execute it if found.
+        let mut mb_key = (ClassMemberKind::Getter, false, name.lexeme.clone());
+        if let Some(getter) = instance.class.borrow().members.get(&mb_key) {
+            let bound_method = bind_method(getter, Value::from(self.clone()));
+            return bound_method.call(itpr_state, vec![]);
+        }
+
+        // Check for an actual field.
         if let Some(value) = instance.fields.borrow().get(&name.lexeme) {
             return Ok(value.clone());
         }
+
+        // Check for a method.
+        mb_key.0 = ClassMemberKind::Method;
         if let Some(method) = instance.class.borrow().members.get(&mb_key) {
             let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
@@ -163,8 +198,21 @@ impl PropertyCarrier for InstanceRef {
         ))
     }
 
-    fn set(&self, name: &Token, value: Value) {
+    fn set(&self, itpr_state: &mut InterpreterState, name: &Token, value: Value) {
         let instance = self.borrow();
+
+        // Check for a property setter.
+        let mb_key = (ClassMemberKind::Setter, false, name.lexeme.clone());
+        if let Some(setter) = instance.class.borrow().members.get(&mb_key) {
+            // Bind and execute the property setter
+            let bound_method = bind_method(setter, Value::from(self.clone()));
+            bound_method
+                .call(itpr_state, vec![value])
+                .expect("failed to execute setter");
+            return;
+        }
+
+        // Set the property directly
         instance
             .fields
             .borrow_mut()
