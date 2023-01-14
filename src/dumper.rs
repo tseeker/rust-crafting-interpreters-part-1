@@ -1,11 +1,6 @@
 use std::fmt::Write;
 
-use crate::{
-    ast::{
-        BinaryExpr, ClassMemberDecl, ExprNode, FunDecl, ProgramNode, PropertyAccessor, StmtNode,
-    },
-    tokens::Token,
-};
+use crate::{ast::{BinaryExpr, ClassMemberDecl, ClassMemberKind, ExprNode, FunDecl, ProgramNode, PropertyAccessor, StmtNode}, tokens::Token};
 
 /* -------------------------------- *
  * Dumper trait and implementations *
@@ -47,33 +42,23 @@ fn dump_substatement(dumper: &mut Dumper, statement: &StmtNode) {
     dumper.depth -= depth_change;
 }
 
-fn dump_method(dumper: &mut Dumper, method: &FunDecl, is_static: bool) {
-    dumper.add_line(format!(
-        "{}{} ({}) {{",
-        if is_static { "static " } else { "" },
-        method.name.lexeme,
-        fun_decl_params(&method.params)
-    ));
-    dumper.depth += 1;
-    dump_statement_list(dumper, &method.body);
-    dumper.depth -= 1;
-    dumper.add_line("}".to_owned());
+fn member_header(member: &ClassMemberDecl) -> String {
+    match member.kind {
+        ClassMemberKind::Method => format!("({})", fun_decl_params(&member.fun_decl.params)),
+        ClassMemberKind::Getter => ">".to_owned(),
+        ClassMemberKind::Setter => "<".to_owned(),
+    }
 }
 
-fn dump_accessor(
-    dumper: &mut Dumper,
-    accessor: &PropertyAccessor,
-    is_setter: bool,
-    is_static: bool,
-) {
+fn dump_member(dumper: &mut Dumper, member: &ClassMemberDecl) {
     dumper.add_line(format!(
-        "{}{} {} {{",
-        if is_static { "static " } else { "" },
-        accessor.name.lexeme,
-        if is_setter { "<" } else { ">" },
+        "{}{} ({}) {{",
+        if member.is_static { "static " } else { "" },
+        member.fun_decl.name.lexeme,
+        member_header(member),
     ));
     dumper.depth += 1;
-    dump_statement_list(dumper, &accessor.body);
+    dump_statement_list(dumper, &member.fun_decl.body);
     dumper.depth -= 1;
     dumper.add_line("}".to_owned());
 }
@@ -111,22 +96,7 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
             if !decl.members.is_empty() {
                 dumper.depth += 1;
                 for member in decl.members.iter() {
-                    match &member {
-                        ClassMemberDecl::Method(method) => dump_method(dumper, method, false),
-                        ClassMemberDecl::StaticMethod(method) => dump_method(dumper, method, true),
-                        ClassMemberDecl::PropertyGetter(accessor) => {
-                            dump_accessor(dumper, accessor, false, false)
-                        }
-                        ClassMemberDecl::PropertySetter(accessor) => {
-                            dump_accessor(dumper, accessor, true, false)
-                        }
-                        ClassMemberDecl::StaticPropertyGetter(accessor) => {
-                            dump_accessor(dumper, accessor, false, true)
-                        }
-                        ClassMemberDecl::StaticPropertySetter(accessor) => {
-                            dump_accessor(dumper, accessor, true, true)
-                        }
-                    };
+                    dump_member(dumper, &member);
                 }
                 dumper.depth -= 1;
                 dumper.add_line(String::default());
