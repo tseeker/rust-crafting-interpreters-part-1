@@ -1,10 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
-    ast::{
-        ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode,
-        SetExpr, StmtNode, VariableExpr,
-    },
+    ast::{ClassDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr, StmtNode, VariableExpr},
     errors::{ErrorKind, SloxError, SloxResult},
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
