@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    ast::{ClassMemberDecl, ExprNode, ProgramNode, StmtNode, VariableExpr},
+    ast::{ClassMemberDecl, ClassMemberKind, ExprNode, ProgramNode, StmtNode, VariableExpr},
     errors::{ErrorKind, SloxError, SloxResult},
     tokens::Token,
 };
@@ -265,6 +265,59 @@ where
     rs.with_scope(|rs| body.resolve(rs), rs.current_type())
 }
 
+/// Determine which error should be returned if the specified class member is
+/// a duplicate.
+fn class_member_uniqueness_error(member: &ClassMemberDecl) -> &'static str {
+    match (member.kind, member.is_static) {
+        (ClassMemberKind::Method, _) => "duplicate method",
+        (ClassMemberKind::Getter, true) => "duplicate static property getter",
+        (ClassMemberKind::Getter, false) => "duplicate property getter",
+        (ClassMemberKind::Setter, true) => "duplicate static property setter",
+        (ClassMemberKind::Setter, false) => "duplicate property setter",
+    }
+}
+
+/// Determine the parameters that will be used when "calling" the specified
+/// class member. Methods will follow the parameters specification, getters
+/// will receive no parameters, and setters will receive a parameter named
+/// after the setter itself.
+fn class_member_parameters(member: &ClassMemberDecl) -> &[Token] {
+    match member.kind {
+        ClassMemberKind::Method => &member.fun_decl.params,
+        ClassMemberKind::Getter => &[],
+        ClassMemberKind::Setter => &[member.fun_decl.name],
+    }
+}
+
+/// Process a class member's definition. A set is used to identify potential
+/// duplicates.
+fn resolve_class_member<'a, 'b>(
+    rs: &mut ResolverState<'a>,
+    member: &'b ClassMemberDecl,
+    uniqueness: &mut HashSet<(ClassMemberKind, bool, String)>,
+) -> ResolverResult {
+    let is_init = member.kind == ClassMemberKind::Method
+        && !member.is_static
+        && member.fun_decl.name.lexeme == "init";
+    let scope_type = match is_init {
+        true => ScopeType::Initializer,
+        false => ScopeType::Method,
+    };
+    let static_key = match member.kind {
+        ClassMemberKind::Method => false,
+        _ => member.is_static,
+    };
+
+    if uniqueness.insert((member.kind, static_key, member.fun_decl.name.lexeme.clone())) {
+        rs.with_scope(
+            |rs| resolve_function(rs, class_member_parameters(member), &member.fun_decl.body),
+            scope_type,
+        )
+    } else {
+        rs.error(&member.fun_decl.name, class_member_uniqueness_error(member))
+    }
+}
+
 /// Process all method definitions in a class.
 fn resolve_class<'a, 'b>(
     rs: &mut ResolverState<'a>,
@@ -273,24 +326,11 @@ fn resolve_class<'a, 'b>(
 where
     'b: 'a,
 {
-    let mut names = HashSet::new();
+    let mut uniqueness = HashSet::new();
     rs.define_this();
-    methods.iter().try_for_each(|member| match member {
-        ClassMemberDecl::Method(method) | ClassMemberDecl::StaticMethod(method) => rs.with_scope(
-            |rs| {
-                if names.insert(method.name.lexeme.clone()) {
-                    resolve_function(rs, &method.params, &method.body)
-                } else {
-                    rs.error(&method.name, "duplicate method name")
-                }
-            },
-            if method.name.lexeme == "init" {
-                ScopeType::Initializer
-            } else {
-                ScopeType::Method
-            },
-        ),
-    })
+    methods
+        .iter()
+        .try_for_each(|member| resolve_class_member(rs, member, &mut uniqueness))
 }
 
 /// Helper trait used to visit the various AST nodes with the resolver.

@@ -17,7 +17,7 @@ pub struct FunDecl {
 }
 
 /// The declaration of a class member.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ClassMemberKind {
     Method,
     Getter,
