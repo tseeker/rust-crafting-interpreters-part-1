@@ -1,6 +1,9 @@
 use std::fmt::Write;
 
-use crate::{ast::{BinaryExpr, ClassMemberDecl, ClassMemberKind, ExprNode, FunDecl, ProgramNode, PropertyAccessor, StmtNode}, tokens::Token};
+use crate::{
+    ast::{BinaryExpr, ClassMemberDecl, ClassMemberKind, ExprNode, ProgramNode, StmtNode},
+    tokens::Token,
+};
 
 /* -------------------------------- *
  * Dumper trait and implementations *
