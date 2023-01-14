@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use crate::{
     ast::{
-        BinaryExpr, ClassDecl, ClassMemberDecl, ExprNode, FunDecl, GetExpr, ProgramNode, SetExpr,
-        StmtNode, VariableExpr,
+        BinaryExpr, ClassDecl, ClassMemberDecl, ClassMemberKind, ExprNode, FunDecl, GetExpr,
+        ProgramNode, SetExpr, StmtNode, VariableExpr,
     },
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
@@ -238,11 +238,11 @@ impl Parser {
                             ));
                         }
                     }
-                    members.push(if static_token.is_some() {
-                        ClassMemberDecl::StaticMethod(d)
-                    } else {
-                        ClassMemberDecl::Method(d)
-                    })
+                    members.push(ClassMemberDecl {
+                        kind: ClassMemberKind::Method,
+                        is_static: static_token.is_some(),
+                        fun_decl: d,
+                    });
                 }
                 _ => panic!("Function declaration expected"),
             }
