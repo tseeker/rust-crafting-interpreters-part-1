@@ -16,11 +16,22 @@ pub struct FunDecl {
     pub body: Vec<StmtNode>,
 }
 
+/// A getter method for a property
+#[derive(Debug, Clone)]
+pub struct PropertyAccessor {
+    pub name: Token,
+    pub body: Vec<StmtNode>,
+}
+
 /// The declaration of a class member.
 #[derive(Debug, Clone)]
 pub enum ClassMemberDecl {
     Method(FunDecl),
     StaticMethod(FunDecl),
+    PropertyGetter(PropertyAccessor),
+    StaticPropertyGetter(PropertyAccessor),
+    PropertySetter(PropertyAccessor),
+    StaticPropertySetter(PropertyAccessor),
 }
 
 /// A class declaration.
