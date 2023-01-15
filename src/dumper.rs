@@ -95,7 +95,11 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
         }
 
         StmtNode::ClassDecl(decl) => {
-            dumper.add_line(format!("class {} {{", decl.name.lexeme));
+            dumper.add_line(format!("class {}", decl.name.lexeme));
+            if let Some(superclass) = &decl.superclass {
+                dumper.current_line().push_str(&format!(" < {}", superclass.lexeme));
+            }
+            dumper.current_line().push_str(" {");
             if !decl.members.is_empty() {
                 dumper.depth += 1;
                 for member in decl.members.iter() {

@@ -257,7 +257,11 @@ impl Parser {
         }
         self.consume(&TokenType::RightBrace, "'}' expected")?;
 
-        Ok(StmtNode::ClassDecl(ClassDecl { name, members }))
+        Ok(StmtNode::ClassDecl(ClassDecl {
+            name,
+            superclass: None,
+            members,
+        }))
     }
 
     /// Parse the following rule:
