@@ -227,7 +227,10 @@ impl Parser {
         let name = self.consume_identifier("expected class name")?;
         let superclass = match self.expect(&[TokenType::Less]) {
             None => None,
-            Some(_) => Some(self.consume_identifier("expected superclass name")?),
+            Some(_) => Some(VariableExpr {
+                token: self.consume_identifier("expected superclass name")?.clone(),
+                id: self.make_id(),
+            }),
         };
 
         self.consume(&TokenType::LeftBrace, "'{' expected")?;

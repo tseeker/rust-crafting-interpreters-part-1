@@ -38,7 +38,7 @@ pub struct ClassDecl {
     /// The token that represents the name of the class.
     pub name: Token,
     /// The token indicating the name of the parent class, if any.
-    pub superclass: Option<Token>,
+    pub superclass: Option<VariableExpr>,
     /// The list of class members.
     pub members: Vec<ClassMemberDecl>,
 }
