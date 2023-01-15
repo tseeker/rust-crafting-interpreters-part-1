@@ -225,6 +225,11 @@ impl Parser {
     /// ```
     fn parse_class(&mut self) -> SloxResult<StmtNode> {
         let name = self.consume_identifier("expected class name")?;
+        let superclass = match self.expect(&[TokenType::Less]) {
+            None => None,
+            Some(_) => Some(self.consume_identifier("expected superclass name")?),
+        };
+
         self.consume(&TokenType::LeftBrace, "'{' expected")?;
         let mut members = Vec::new();
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
@@ -259,7 +264,7 @@ impl Parser {
 
         Ok(StmtNode::ClassDecl(ClassDecl {
             name,
-            superclass: None,
+            superclass,
             members,
         }))
     }
