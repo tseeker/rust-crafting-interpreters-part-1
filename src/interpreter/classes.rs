@@ -24,6 +24,7 @@ pub type ClassMemberKey = (ClassMemberKind, bool, String);
 #[derive(Debug, Clone)]
 pub struct Class {
     name: String,
+    superclass: Option<ClassRef>,
     members: HashMap<ClassMemberKey, Function>,
     fields: RefCell<HashMap<String, Value>>,
 }
@@ -34,7 +35,7 @@ pub type ClassRef = Rc<RefCell<Class>>;
 /// An instance of a Lox class
 #[derive(Debug, Clone)]
 pub struct Instance {
-    class: Rc<RefCell<Class>>,
+    class: ClassRef,
     fields: RefCell<HashMap<String, Value>>,
 }
 
@@ -58,9 +59,14 @@ fn bind_method(method: &Function, this_value: Value) -> Function {
 
 impl Class {
     /// Create a new class, specifying its name.
-    pub fn new(name: String, members: HashMap<ClassMemberKey, Function>) -> Self {
+    pub fn new(
+        name: String,
+        superclass: Option<ClassRef>,
+        members: HashMap<ClassMemberKey, Function>,
+    ) -> Self {
         Self {
             name,
+            superclass,
             members,
             fields: RefCell::new(HashMap::default()),
         }
