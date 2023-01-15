@@ -225,7 +225,22 @@ impl StmtNode {
     /// Handle a class declaration
     fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
         es.environment.borrow_mut().define(&decl.name, None)?;
-        let class = Class::new(decl.name.lexeme.clone(), extract_members(es, decl));
+        let superclass = match &decl.superclass {
+            None => None,
+            Some(superclass) => {
+                let sc_value = superclass.interpret(es)?.result();
+                if let Some(sc_ref) = sc_value.as_class_ref() {
+                    Some(sc_ref)
+                } else {
+                    return error(&superclass.token, "superclass must be a class");
+                }
+            }
+        };
+        let class = Class::new(
+            decl.name.lexeme.clone(),
+            superclass,
+            extract_members(es, decl),
+        );
         es.environment
             .borrow_mut()
             .assign(&decl.name, class.into())?;
@@ -362,9 +377,7 @@ impl Interpretable for ExprNode {
             ExprNode::Unary { operator, right } => self.on_unary(es, operator, right),
             ExprNode::Grouping { expression } => expression.interpret(es),
             ExprNode::Litteral { value } => self.on_litteral(value),
-            ExprNode::Variable(var_expr) | ExprNode::This(var_expr) => {
-                Ok(es.lookup_var(var_expr)?.into())
-            }
+            ExprNode::Variable(var_expr) | ExprNode::This(var_expr) => var_expr.interpret(es),
             ExprNode::Call {
                 callee,
                 right_paren,
@@ -377,6 +390,12 @@ impl Interpretable for ExprNode {
             ExprNode::Get(get_expr) => self.on_get_expression(es, get_expr),
             ExprNode::Set(set_expr) => self.on_set_expression(es, set_expr),
         }
+    }
+}
+
+impl Interpretable for VariableExpr {
+    fn interpret(&self, es: &mut InterpreterState) -> InterpreterResult {
+        Ok(es.lookup_var(self)?.into())
     }
 }
 
