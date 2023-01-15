@@ -106,15 +106,38 @@ impl Callable for ClassRef {
     }
 }
 
+/// Attempt to find some member, identified by a key, inside a class hierarchy. If the member is
+/// found, the specified function is exectued with the member as its argument, and its return value
+/// is passed back to the caller. If the member is not found, None is returned.
+fn with_class_member<F, Rt>(class: &ClassRef, mb_key: &ClassMemberKey, f: F) -> Option<Rt>
+where
+    F: FnOnce(&Function) -> Rt,
+{
+    let mut cls = class.clone();
+    loop {
+        if let Some(member) = cls.borrow().members.get(&mb_key) {
+            return Some(f(member));
+        }
+        let nclr = if let Some(sc) = &cls.borrow().superclass {
+            sc.clone()
+        } else {
+            return None;
+        };
+        cls = nclr;
+    }
+}
+
 impl PropertyCarrier for ClassRef {
     fn get(&self, itpr_state: &mut InterpreterState, name: &Token) -> SloxResult<Value> {
         let class = self.borrow();
 
         // Check for a property getter and execute it if found.
         let mut mb_key = (ClassMemberKind::Getter, true, name.lexeme.clone());
-        if let Some(getter) = class.members.get(&mb_key) {
+        if let Some(value) = with_class_member(self, &mb_key, |getter| {
             let bound_method = bind_method(getter, Value::from(self.clone()));
             return bound_method.call(itpr_state, vec![]);
+        }) {
+            return value;
         }
 
         // Check for an actual field.
@@ -124,9 +147,11 @@ impl PropertyCarrier for ClassRef {
 
         // Check for a method.
         mb_key.0 = ClassMemberKind::Method;
-        if let Some(method) = class.members.get(&mb_key) {
+        if let Some(method) = with_class_member(self, &mb_key, |method| {
             let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
+        }) {
+            return method;
         }
 
         Err(SloxError::with_token(
@@ -141,12 +166,13 @@ impl PropertyCarrier for ClassRef {
 
         // Check for a property setter.
         let mb_key = (ClassMemberKind::Setter, true, name.lexeme.clone());
-        if let Some(setter) = class.members.get(&mb_key) {
-            // Bind and execute the property setter
+        let lookup = with_class_member(self, &mb_key, |setter| {
             let bound_method = bind_method(setter, Value::from(self.clone()));
             bound_method
-                .call(itpr_state, vec![value])
+                .call(itpr_state, vec![value.clone()])
                 .expect("failed to execute setter");
+        });
+        if lookup.is_some() {
             return;
         }
 
@@ -180,9 +206,11 @@ impl PropertyCarrier for InstanceRef {
 
         // Check for a property getter and execute it if found.
         let mut mb_key = (ClassMemberKind::Getter, false, name.lexeme.clone());
-        if let Some(getter) = instance.class.borrow().members.get(&mb_key) {
+        if let Some(value) = with_class_member(&instance.class, &mb_key, |getter| {
             let bound_method = bind_method(getter, Value::from(self.clone()));
             return bound_method.call(itpr_state, vec![]);
+        }) {
+            return value;
         }
 
         // Check for an actual field.
@@ -192,9 +220,11 @@ impl PropertyCarrier for InstanceRef {
 
         // Check for a method.
         mb_key.0 = ClassMemberKind::Method;
-        if let Some(method) = instance.class.borrow().members.get(&mb_key) {
+        if let Some(method) = with_class_member(&instance.class, &mb_key, |method| {
             let bound_method = bind_method(method, Value::from(self.clone()));
             return Ok(Value::from(bound_method));
+        }) {
+            return method;
         }
 
         Err(SloxError::with_token(
@@ -209,12 +239,13 @@ impl PropertyCarrier for InstanceRef {
 
         // Check for a property setter.
         let mb_key = (ClassMemberKind::Setter, false, name.lexeme.clone());
-        if let Some(setter) = instance.class.borrow().members.get(&mb_key) {
-            // Bind and execute the property setter
+        let lookup = with_class_member(&instance.class, &mb_key, |setter| {
             let bound_method = bind_method(setter, Value::from(self.clone()));
             bound_method
-                .call(itpr_state, vec![value])
+                .call(itpr_state, vec![value.clone()])
                 .expect("failed to execute setter");
+        });
+        if lookup.is_some() {
             return;
         }
 
