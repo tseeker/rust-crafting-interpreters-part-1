@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::{
     ast::{
         BinaryExpr, ClassDecl, ClassMemberDecl, ClassMemberKind, ExprNode, FunDecl, GetExpr,
-        ProgramNode, SetExpr, StmtNode, VariableExpr,
+        ProgramNode, SetExpr, StmtNode, SuperExpr, VariableExpr,
     },
     errors::{ErrorHandler, ErrorKind, SloxError, SloxResult},
     tokens::{Token, TokenType},
@@ -738,22 +738,35 @@ impl Parser {
     /// primary := FALSE | TRUE | NIL | STRING | NUMBER
     /// primary := IDENTIFIER
     /// primary := "fun" function_info
+    /// primary := "super" "." IDENTIFIER
     /// ```
     fn parse_primary(&mut self) -> SloxResult<ExprNode> {
         if self.expect(&[TokenType::LeftParen]).is_some() {
+            // "(" expression ")"
             let expr = self.parse_expression()?;
             self.consume(&TokenType::RightParen, "expected ')' after expression")?;
             Ok(ExprNode::Grouping {
                 expression: Box::new(expr),
             })
+        } else if let Some(super_token) = self.expect(&[TokenType::Super]) {
+            // "super" "." IDENTIFIER
+            self.consume(&TokenType::Dot, "expected '.' after 'super'")?;
+            let identifier = self.consume_identifier("expected method name")?;
+            Ok(ExprNode::Super(SuperExpr {
+                keyword: super_token,
+                method: identifier,
+            }))
         } else if self.expect(&[TokenType::Fun]).is_some() {
+            // "fun" function_info
             let (params, body) = self.parse_function_info(FunctionKind::Lambda)?;
             Ok(ExprNode::Lambda { params, body })
         } else if let Some(token) =
             self.expect(&[TokenType::False, TokenType::True, TokenType::Nil])
         {
+            // TRUE | FALSE | NIL
             Ok(ExprNode::Litteral { value: token })
         } else {
+            // STRING | NUMBER | IDENTIFIER | "this"
             match &self.peek().token_type {
                 TokenType::Number(_) | &TokenType::String(_) => Ok(ExprNode::Litteral {
                     value: self.advance().clone(),
