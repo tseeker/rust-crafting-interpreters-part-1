@@ -283,6 +283,11 @@ fn dump_expr_node(dumper: &mut Dumper, expr: &ExprNode) {
             dumper.current_line().push_str(" = ");
             dump_expr_node(dumper, &set_expr.value);
         }
+
+        ExprNode::Super(super_expr) => {
+            dumper.current_line().push_str("super.");
+            dumper.current_line().push_str(&super_expr.method.lexeme);
+        }
     }
 }
 

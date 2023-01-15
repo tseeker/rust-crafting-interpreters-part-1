@@ -134,6 +134,15 @@ pub struct VariableExpr {
     pub id: usize,
 }
 
+/// A reference to a method in the superclass.
+#[derive(Debug, Clone)]
+pub struct SuperExpr {
+    /// The 'super' token itself
+    pub keyword: Token,
+    /// The identifier that contains the method name
+    pub method: Token,
+}
+
 /// An AST node that represents an expression.
 #[derive(Debug, Clone)]
 pub enum ExprNode {
@@ -189,4 +198,6 @@ pub enum ExprNode {
     Get(GetExpr),
     /// A set expression.
     Set(SetExpr),
+    /// A reference to a method in the superclass
+    Super(SuperExpr),
 }

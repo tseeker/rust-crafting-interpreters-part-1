@@ -389,6 +389,7 @@ impl Interpretable for ExprNode {
             }
             ExprNode::Get(get_expr) => self.on_get_expression(es, get_expr),
             ExprNode::Set(set_expr) => self.on_set_expression(es, set_expr),
+            ExprNode::Super(_) => todo!(),
         }
     }
 }

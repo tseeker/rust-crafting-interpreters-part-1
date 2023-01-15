@@ -485,6 +485,8 @@ impl VarResolver for ExprNode {
                 .instance
                 .resolve(rs)
                 .and_then(|_| set_expr.value.resolve(rs)),
+
+            ExprNode::Super(_) => todo!(),
         }
     }
 }
