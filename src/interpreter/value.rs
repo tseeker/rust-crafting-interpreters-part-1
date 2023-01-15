@@ -39,6 +39,14 @@ impl Value {
         }
     }
 
+    /// Check whether a value carries a class reference.
+    pub fn is_class(&self) -> bool {
+        match self {
+            Value::Object(obj_ref) => matches!(*obj_ref.borrow(), Object::Class(_)),
+            _ => false,
+        }
+    }
+
     /// Run some code using the callable object wrapped inside a value.
     /// If the value is not callable, an error function will be called
     /// instead.
