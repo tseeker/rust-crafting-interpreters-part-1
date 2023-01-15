@@ -383,6 +383,9 @@ impl VarResolver for StmtNode {
 
             StmtNode::ClassDecl(decl) => {
                 rs.declare(&decl.name, SymKind::Class)?;
+                if let Some(superclass) = &decl.superclass {
+                    rs.resolve_use(superclass)?;
+                }
                 rs.define(&decl.name);
                 rs.with_scope(|rs| resolve_class(rs, &decl.members), rs.current_type())
             }
