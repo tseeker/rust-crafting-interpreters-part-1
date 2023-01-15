@@ -39,11 +39,15 @@ impl Value {
         }
     }
 
-    /// Check whether a value carries a class reference.
-    pub fn is_class(&self) -> bool {
+    /// Get the class reference from a value that carries a class reference, or
+    /// None from a value that doesn't.
+    pub fn as_class_ref(&self) -> Option<ClassRef> {
         match self {
-            Value::Object(obj_ref) => matches!(*obj_ref.borrow(), Object::Class(_)),
-            _ => false,
+            Value::Object(obj_ref) => match &*obj_ref.borrow() {
+                Object::Class(cls_ref) => Some(cls_ref.clone()),
+                _ => None,
+            },
+            _ => None,
         }
     }
 
