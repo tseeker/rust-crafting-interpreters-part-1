@@ -138,7 +138,7 @@ pub struct VariableExpr {
 #[derive(Debug, Clone)]
 pub struct SuperExpr {
     /// The 'super' token itself
-    pub keyword: Token,
+    pub keyword: VariableExpr,
     /// The identifier that contains the method name
     pub method: Token,
 }

@@ -753,7 +753,10 @@ impl Parser {
             self.consume(&TokenType::Dot, "expected '.' after 'super'")?;
             let identifier = self.consume_identifier("expected method name")?;
             Ok(ExprNode::Super(SuperExpr {
-                keyword: super_token,
+                keyword: VariableExpr {
+                    token: super_token,
+                    id: self.make_id(),
+                },
                 method: identifier,
             }))
         } else if self.expect(&[TokenType::Fun]).is_some() {
