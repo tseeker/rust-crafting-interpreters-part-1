@@ -38,7 +38,7 @@ enum SymKind {
     Variable,
     Function,
     Class,
-    This,
+    Special,
 }
 
 /// The type of a scope
@@ -168,17 +168,17 @@ impl<'a> ResolverState<'a> {
         }
     }
 
-    /// Declare and define the "this" value for the current scope.
-    fn define_this(&mut self) {
+    /// Declare and define a special symbol (e.g. this) for the current scope.
+    fn define_special(&mut self, name: &str) {
         assert!(!self.scopes.is_empty());
         let idx = self.scopes.len() - 1;
         let scope = &mut self.scopes[idx];
-        assert!(!scope.symbols.contains_key("this"));
+        assert!(!scope.symbols.contains_key(name));
         scope.symbols.insert(
-            "this".to_owned(),
+            name.to_owned(),
             SymInfo {
                 decl: None,
-                kind: SymKind::This,
+                kind: SymKind::Special,
                 state: SymState::Defined,
             },
         );
@@ -312,16 +312,30 @@ where
 /// Process all method definitions in a class.
 fn resolve_class<'a, 'b>(
     rs: &mut ResolverState<'a>,
+    has_superclass: bool,
     methods: &'b [ClassMemberDecl],
 ) -> ResolverResult
 where
     'b: 'a,
 {
     let mut uniqueness = HashSet::new();
-    rs.define_this();
-    methods
-        .iter()
-        .try_for_each(|member| resolve_class_member(rs, member, &mut uniqueness))
+    let mut rc = |rs: &mut ResolverState<'a>| {
+        rs.define_special("this");
+        methods
+            .iter()
+            .try_for_each(|member| resolve_class_member(rs, member, &mut uniqueness))
+    };
+    if has_superclass {
+        rs.with_scope(
+            |rs| {
+                rs.define_special("super");
+                rc(rs)
+            },
+            rs.current_type(),
+        )
+    } else {
+        rc(rs)
+    }
 }
 
 /// Helper trait used to visit the various AST nodes with the resolver.
@@ -387,7 +401,10 @@ impl VarResolver for StmtNode {
                     rs.resolve_use(superclass)?;
                 }
                 rs.define(&decl.name);
-                rs.with_scope(|rs| resolve_class(rs, &decl.members), rs.current_type())
+                rs.with_scope(
+                    |rs| resolve_class(rs, decl.superclass.is_some(), &decl.members),
+                    rs.current_type(),
+                )
             }
 
             StmtNode::If {
