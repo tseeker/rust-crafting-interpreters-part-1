@@ -225,22 +225,27 @@ impl StmtNode {
     /// Handle a class declaration
     fn on_class_decl(&self, es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResult {
         es.environment.borrow_mut().define(&decl.name, None)?;
-        let superclass = match &decl.superclass {
-            None => None,
+        let class = match &decl.superclass {
+            None => Class::new(decl.name.lexeme.clone(), None, extract_members(es, decl)),
             Some(superclass) => {
                 let sc_value = superclass.interpret(es)?.result();
-                if let Some(sc_ref) = sc_value.as_class_ref() {
+                let sc_ref = if let Some(sc_ref) = sc_value.as_class_ref() {
                     Some(sc_ref)
                 } else {
                     return error(&superclass.token, "superclass must be a class");
-                }
+                };
+                let mut sub_env = InterpreterState::create_child(es);
+                sub_env
+                    .environment
+                    .borrow_mut()
+                    .set("super", sc_value.clone());
+                Class::new(
+                    decl.name.lexeme.clone(),
+                    sc_ref,
+                    extract_members(&mut sub_env, decl),
+                )
             }
         };
-        let class = Class::new(
-            decl.name.lexeme.clone(),
-            superclass,
-            extract_members(es, decl),
-        );
         es.environment
             .borrow_mut()
             .assign(&decl.name, class.into())?;
