@@ -503,7 +503,7 @@ impl VarResolver for ExprNode {
                 .resolve(rs)
                 .and_then(|_| set_expr.value.resolve(rs)),
 
-            ExprNode::Super(_) => todo!(),
+            ExprNode::Super(expr) => rs.resolve_use(&expr.keyword),
         }
     }
 }
