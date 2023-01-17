@@ -135,7 +135,7 @@ impl PropertyCarrier for ClassRef {
         let mut mb_key = (ClassMemberKind::Getter, true, name.lexeme.clone());
         if let Some(value) = with_class_member(self, &mb_key, |getter| {
             let bound_method = bind_method(getter, Value::from(self.clone()));
-            return bound_method.call(itpr_state, vec![]);
+            bound_method.call(itpr_state, vec![])
         }) {
             return value;
         }
@@ -149,7 +149,7 @@ impl PropertyCarrier for ClassRef {
         mb_key.0 = ClassMemberKind::Method;
         if let Some(method) = with_class_member(self, &mb_key, |method| {
             let bound_method = bind_method(method, Value::from(self.clone()));
-            return Ok(Value::from(bound_method));
+            Ok(Value::from(bound_method))
         }) {
             return method;
         }
@@ -208,7 +208,7 @@ impl PropertyCarrier for InstanceRef {
         let mut mb_key = (ClassMemberKind::Getter, false, name.lexeme.clone());
         if let Some(value) = with_class_member(&instance.class, &mb_key, |getter| {
             let bound_method = bind_method(getter, Value::from(self.clone()));
-            return bound_method.call(itpr_state, vec![]);
+            bound_method.call(itpr_state, vec![])
         }) {
             return value;
         }
@@ -222,7 +222,7 @@ impl PropertyCarrier for InstanceRef {
         mb_key.0 = ClassMemberKind::Method;
         if let Some(method) = with_class_member(&instance.class, &mb_key, |method| {
             let bound_method = bind_method(method, Value::from(self.clone()));
-            return Ok(Value::from(bound_method));
+            Ok(Value::from(bound_method))
         }) {
             return method;
         }
