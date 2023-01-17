@@ -394,7 +394,27 @@ impl Interpretable for ExprNode {
             }
             ExprNode::Get(get_expr) => self.on_get_expression(es, get_expr),
             ExprNode::Set(set_expr) => self.on_set_expression(es, set_expr),
-            ExprNode::Super(_) => todo!(),
+            ExprNode::Super(super_expr) => {
+                let distance = match es.locals.get(&super_expr.keyword.id) {
+                    Some(distance) => *distance,
+                    None => panic!("super environment not found"),
+                };
+                assert!(distance > 0);
+                let obj_ref = es.environment.borrow().get_at(
+                    distance - 1,
+                    &Token {
+                        token_type: TokenType::This,
+                        lexeme: "this".to_owned(),
+                        line: 0,
+                    },
+                )?;
+                Ok(obj_ref
+                    .with_property_carrier(
+                        |inst| inst.get_super(es, &super_expr, distance),
+                        || panic!("'this' didn't contain an instance"),
+                    )?
+                    .into())
+            }
         }
     }
 }
