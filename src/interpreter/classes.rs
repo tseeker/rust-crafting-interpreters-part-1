@@ -48,9 +48,9 @@ pub struct Instance {
 /// Helper type used to refer to instances.
 pub type InstanceRef = Rc<RefCell<Instance>>;
 
-/* -------------------- *
- * Class implementation *
- * -------------------- */
+/* --------------- *
+ * Various helpers *
+ * --------------- */
 
 lazy_static! {
     static ref INIT_METHOD_KEY: ClassMemberKey =
@@ -62,6 +62,46 @@ fn bind_method(method: &Function, this_value: Value) -> Function {
     bm.env().set("this", this_value);
     bm
 }
+
+fn get_super<T>(
+    on_ref: &T,
+    is_static: bool,
+    itpr_state: &mut InterpreterState,
+    super_expr: &SuperExpr,
+    distance: usize,
+) -> SloxResult<Value>
+where
+    T: Clone + Into<Value>,
+{
+    let mb_key = (
+        ClassMemberKind::Method,
+        is_static,
+        super_expr.method.lexeme.clone(),
+    );
+
+    let sc_value = itpr_state
+        .environment
+        .borrow()
+        .get_at(distance, &super_expr.keyword.token)?;
+    let class = sc_value.as_class_ref().expect("class reference expected");
+
+    if let Some(method) = with_class_member(&class, &mb_key, |method| {
+        let bound_method = bind_method(method, on_ref.clone().into());
+        Ok(Value::from(bound_method))
+    }) {
+        method
+    } else {
+        Err(SloxError::with_token(
+            ErrorKind::Runtime,
+            &super_expr.method,
+            "undefined property".to_owned(),
+        ))
+    }
+}
+
+/* -------------------- *
+ * Class implementation *
+ * -------------------- */
 
 impl Class {
     /// Create a new class, specifying its name.
@@ -192,30 +232,7 @@ impl PropertyCarrier for ClassRef {
         super_expr: &SuperExpr,
         distance: usize,
     ) -> SloxResult<Value> {
-        let mb_key = (
-            ClassMemberKind::Method,
-            true,
-            super_expr.method.lexeme.clone(),
-        );
-
-        let sc_value = itpr_state
-            .environment
-            .borrow()
-            .get_at(distance, &super_expr.keyword.token)?;
-        let class = sc_value.as_class_ref().expect("class reference expected");
-
-        if let Some(method) = with_class_member(&class, &mb_key, |method| {
-            let bound_method = bind_method(method, Value::from(self.clone()));
-            Ok(Value::from(bound_method))
-        }) {
-            method
-        } else {
-            Err(SloxError::with_token(
-                ErrorKind::Runtime,
-                &super_expr.method,
-                "undefined property".to_owned(),
-            ))
-        }
+        get_super(self, true, itpr_state, super_expr, distance)
     }
 }
 
@@ -300,29 +317,6 @@ impl PropertyCarrier for InstanceRef {
         super_expr: &SuperExpr,
         distance: usize,
     ) -> SloxResult<Value> {
-        let mb_key = (
-            ClassMemberKind::Method,
-            false,
-            super_expr.method.lexeme.clone(),
-        );
-
-        let sc_value = itpr_state
-            .environment
-            .borrow()
-            .get_at(distance, &super_expr.keyword.token)?;
-        let class = sc_value.as_class_ref().expect("class reference expected");
-
-        if let Some(method) = with_class_member(&class, &mb_key, |method| {
-            let bound_method = bind_method(method, Value::from(self.clone()));
-            Ok(Value::from(bound_method))
-        }) {
-            method
-        } else {
-            Err(SloxError::with_token(
-                ErrorKind::Runtime,
-                &super_expr.method,
-                "undefined property".to_owned(),
-            ))
-        }
+        get_super(self, false, itpr_state, super_expr, distance)
     }
 }
