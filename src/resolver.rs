@@ -54,6 +54,17 @@ enum ScopeType {
     Method,
 }
 
+/// The type of a class.
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+enum ClassType {
+    /// No class is being visited.
+    None,
+    /// A top-level class is being visited.
+    Class,
+    /// A sub-class is being visited.
+    Subclass,
+}
+
 /// General information about a symbol.
 #[derive(Clone, Debug)]
 struct SymInfo<'a> {
@@ -79,6 +90,8 @@ struct ResolverState<'a> {
     scopes: Vec<SymScope<'a>>,
     /// The result of the resolver pass.
     resolved: ResolvedVariables,
+    /// The type of class being visited.
+    current_class_type: ClassType,
 }
 
 impl<'a> SymScope<'a> {
@@ -88,6 +101,12 @@ impl<'a> SymScope<'a> {
             scope_type,
             symbols: HashMap::default(),
         }
+    }
+}
+
+impl Default for ClassType {
+    fn default() -> Self {
+        ClassType::None
     }
 }
 
@@ -397,14 +416,20 @@ impl VarResolver for StmtNode {
 
             StmtNode::ClassDecl(decl) => {
                 rs.declare(&decl.name, SymKind::Class)?;
+                let enclosing = rs.current_class_type;
                 if let Some(superclass) = &decl.superclass {
                     rs.resolve_use(superclass)?;
+                    rs.current_class_type = ClassType::Subclass;
+                } else {
+                    rs.current_class_type = ClassType::Class;
                 }
                 rs.define(&decl.name);
-                rs.with_scope(
+                let result = rs.with_scope(
                     |rs| resolve_class(rs, decl.superclass.is_some(), &decl.members),
                     rs.current_type(),
-                )
+                );
+                rs.current_class_type = enclosing;
+                result
             }
 
             StmtNode::If {
@@ -503,7 +528,16 @@ impl VarResolver for ExprNode {
                 .resolve(rs)
                 .and_then(|_| set_expr.value.resolve(rs)),
 
-            ExprNode::Super(expr) => rs.resolve_use(&expr.keyword),
+            ExprNode::Super(expr) => match rs.current_class_type {
+                ClassType::Subclass => rs.resolve_use(&expr.keyword),
+                ClassType::None => {
+                    rs.error(&expr.keyword.token, "can't use 'super' outside of a class")
+                }
+                ClassType::Class => rs.error(
+                    &expr.keyword.token,
+                    "can't use 'super' in a top-level class",
+                ),
+            },
         }
     }
 }
