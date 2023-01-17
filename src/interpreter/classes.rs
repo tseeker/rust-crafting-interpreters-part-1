@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 use lazy_static::lazy_static;
 
 use crate::{
-    ast::ClassMemberKind,
+    ast::{ClassMemberKind, SuperExpr},
     errors::{ErrorKind, SloxError, SloxResult},
     tokens::Token,
 };
@@ -15,6 +15,12 @@ use super::{functions::Function, Callable, InterpreterState, Value};
 pub trait PropertyCarrier {
     fn get(&self, itpr_state: &mut InterpreterState, name: &Token) -> SloxResult<Value>;
     fn set(&self, itpr_state: &mut InterpreterState, name: &Token, value: Value);
+    fn get_super(
+        &self,
+        itpr_state: &mut InterpreterState,
+        super_expr: &SuperExpr,
+        distance: usize,
+    ) -> SloxResult<Value>;
 }
 
 /// The key for the table of class members.
@@ -179,6 +185,38 @@ impl PropertyCarrier for ClassRef {
         // Set the property directly
         class.fields.borrow_mut().insert(name.lexeme.clone(), value);
     }
+
+    fn get_super(
+        &self,
+        itpr_state: &mut InterpreterState,
+        super_expr: &SuperExpr,
+        distance: usize,
+    ) -> SloxResult<Value> {
+        let mb_key = (
+            ClassMemberKind::Method,
+            true,
+            super_expr.method.lexeme.clone(),
+        );
+
+        let sc_value = itpr_state
+            .environment
+            .borrow()
+            .get_at(distance, &super_expr.keyword.token)?;
+        let class = sc_value.as_class_ref().expect("class reference expected");
+
+        if let Some(method) = with_class_member(&class, &mb_key, |method| {
+            let bound_method = bind_method(method, Value::from(self.clone()));
+            Ok(Value::from(bound_method))
+        }) {
+            method
+        } else {
+            Err(SloxError::with_token(
+                ErrorKind::Runtime,
+                &super_expr.method,
+                "undefined property".to_owned(),
+            ))
+        }
+    }
 }
 
 /* ----------------------- *
@@ -254,5 +292,37 @@ impl PropertyCarrier for InstanceRef {
             .fields
             .borrow_mut()
             .insert(name.lexeme.clone(), value);
+    }
+
+    fn get_super(
+        &self,
+        itpr_state: &mut InterpreterState,
+        super_expr: &SuperExpr,
+        distance: usize,
+    ) -> SloxResult<Value> {
+        let mb_key = (
+            ClassMemberKind::Method,
+            false,
+            super_expr.method.lexeme.clone(),
+        );
+
+        let sc_value = itpr_state
+            .environment
+            .borrow()
+            .get_at(distance, &super_expr.keyword.token)?;
+        let class = sc_value.as_class_ref().expect("class reference expected");
+
+        if let Some(method) = with_class_member(&class, &mb_key, |method| {
+            let bound_method = bind_method(method, Value::from(self.clone()));
+            Ok(Value::from(bound_method))
+        }) {
+            method
+        } else {
+            Err(SloxError::with_token(
+                ErrorKind::Runtime,
+                &super_expr.method,
+                "undefined property".to_owned(),
+            ))
+        }
     }
 }
