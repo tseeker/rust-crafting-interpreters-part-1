@@ -282,10 +282,7 @@ fn on_class_decl(es: &mut InterpreterState, decl: &ClassDecl) -> InterpreterResu
                 return error(&superclass.token, "superclass must be a class");
             };
             let mut sub_env = InterpreterState::create_child(es);
-            sub_env
-                .environment
-                .borrow_mut()
-                .set("super", sc_value.clone());
+            sub_env.environment.borrow_mut().set("super", sc_value);
             Class::new(
                 decl.name.lexeme.clone(),
                 sc_ref,
@@ -584,7 +581,7 @@ fn on_super(itpr_state: &mut InterpreterState, super_expr: &SuperExpr) -> Interp
     )?;
     Ok(obj_ref
         .with_property_carrier(
-            |inst| inst.get_super(itpr_state, &super_expr, distance),
+            |inst| inst.get_super(itpr_state, super_expr, distance),
             || panic!("'this' didn't contain an instance"),
         )?
         .into())

@@ -228,7 +228,7 @@ impl Parser {
         let superclass = match self.expect(&[TokenType::Less]) {
             None => None,
             Some(_) => Some(VariableExpr {
-                token: self.consume_identifier("expected superclass name")?.clone(),
+                token: self.consume_identifier("expected superclass name")?,
                 id: self.make_id(),
             }),
         };
@@ -336,7 +336,7 @@ impl Parser {
     /// block := "{" block_contents
     /// ```
     fn parse_block(&mut self, err_string: &str) -> Result<StmtNode, SloxError> {
-        self.consume(&TokenType::LeftBrace, &err_string)?;
+        self.consume(&TokenType::LeftBrace, err_string)?;
         self.loop_state.push(LoopParsingState::None);
         let result = self.parse_block_contents();
         self.loop_state.pop();

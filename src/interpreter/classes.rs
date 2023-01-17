@@ -161,7 +161,7 @@ where
 {
     let mut cls = class.clone();
     loop {
-        if let Some(member) = cls.borrow().members.get(&mb_key) {
+        if let Some(member) = cls.borrow().members.get(mb_key) {
             return Some(f(member));
         }
         let nclr = if let Some(sc) = &cls.borrow().superclass {

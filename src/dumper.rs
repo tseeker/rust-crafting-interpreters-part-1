@@ -105,7 +105,7 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
             if !decl.members.is_empty() {
                 dumper.depth += 1;
                 for member in decl.members.iter() {
-                    dump_member(dumper, &member);
+                    dump_member(dumper, member);
                 }
                 dumper.depth -= 1;
                 dumper.add_line(String::default());
