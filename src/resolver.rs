@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     ast::{ClassMemberDecl, ClassMemberKind, ExprNode, ProgramNode, StmtNode, VariableExpr},
     errors::{ErrorKind, SloxError, SloxResult},
+    special,
     tokens::Token,
 };
 
@@ -296,6 +297,55 @@ fn class_member_uniqueness_error(member: &ClassMemberDecl) -> &'static str {
     }
 }
 
+/// Check a special class member's characteristics, and return a scope type to be used when
+/// resolving that class member.
+fn handle_special_members<'a, 'b>(member: &'b ClassMemberDecl) -> SloxResult<ScopeType> {
+    if member.kind != ClassMemberKind::Method {
+        return Ok(ScopeType::Method);
+    }
+
+    let scm = match special::SPECIAL_MEMBER_IDENTIFIERS.get(&member.fun_decl.name.lexeme as &str) {
+        None => return Ok(ScopeType::Method),
+        Some(scm) => scm,
+    };
+    if member.is_static {
+        return Err(SloxError::with_token(
+            ErrorKind::Parse,
+            &member.fun_decl.name,
+            "special members may not be static".to_owned(),
+        ));
+    }
+    let def = special::SPECIAL_MEMBERS
+        .get(scm)
+        .expect("Missing special member definition");
+    let n_args = member.fun_decl.params.len();
+    if n_args < def.min_args {
+        return Err(SloxError::with_token(
+            ErrorKind::Parse,
+            &member.fun_decl.name,
+            format!(
+                "this special member requires at least {} argument(s)",
+                def.min_args
+            ),
+        ));
+    }
+    if n_args > def.max_args {
+        return Err(SloxError::with_token(
+            ErrorKind::Parse,
+            &member.fun_decl.name,
+            format!(
+                "this special member requires at most {} argument(s)",
+                def.max_args
+            ),
+        ));
+    }
+
+    Ok(match def.which {
+        special::SpecialClassMember::Init => ScopeType::Initializer,
+        _ => ScopeType::Method,
+    })
+}
+
 /// Process a class member's definition. A set is used to identify potential
 /// duplicates.
 fn resolve_class_member<'a, 'b>(
@@ -306,13 +356,7 @@ fn resolve_class_member<'a, 'b>(
 where
     'b: 'a,
 {
-    let is_init = member.kind == ClassMemberKind::Method
-        && !member.is_static
-        && member.fun_decl.name.lexeme == "init";
-    let scope_type = match is_init {
-        true => ScopeType::Initializer,
-        false => ScopeType::Method,
-    };
+    let scope_type = handle_special_members(member)?;
     let static_key = match member.kind {
         ClassMemberKind::Method => false,
         _ => member.is_static,
