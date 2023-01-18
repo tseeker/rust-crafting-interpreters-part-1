@@ -5,6 +5,7 @@ mod interpreter;
 mod parser;
 mod resolver;
 mod scanner;
+mod special;
 mod tokens;
 
 use std::{
