@@ -417,6 +417,12 @@ fn on_binary(
         TokenType::Plus => match (left_value, right_value) {
             (Value::Number(a), Value::Number(b)) => Ok(Value::Number(a + b).into()),
             (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b).into()),
+            (a, Value::String(b)) => {
+                Ok(Value::String(a.convert_to_string(es, operator)? + &b).into())
+            }
+            (Value::String(a), b) => {
+                Ok(Value::String(a + &b.convert_to_string(es, operator)?).into())
+            }
             _ => error(operator, "type error"),
         },
 
