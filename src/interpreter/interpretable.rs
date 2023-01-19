@@ -6,7 +6,6 @@ use crate::{
         VariableExpr,
     },
     errors::{ErrorKind, SloxError, SloxResult},
-    interpreter::classes::PropertyCarrier,
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
 };
@@ -152,7 +151,7 @@ impl Interpretable for StmtNode {
             StmtNode::FunDecl(decl) => on_fun_decl(es, decl),
             StmtNode::ClassDecl(decl) => on_class_decl(es, decl),
             StmtNode::Expression(expr) => expr.interpret(es),
-            StmtNode::Print(_, expr) => on_print(es, expr),
+            StmtNode::Print(token, expr) => on_print(es, token, expr),
             StmtNode::Block(statements) => on_block(es, statements),
             StmtNode::If {
                 condition,
@@ -249,29 +248,9 @@ fn extract_members(
 }
 
 /// Handle the `print` statement.
-fn on_print(es: &mut InterpreterState, expr: &ExprNode) -> InterpreterResult {
+fn on_print(es: &mut InterpreterState, token: &Token, expr: &ExprNode) -> InterpreterResult {
     let value = expr.interpret(es)?.result();
-    let output = value.with_instance(
-        |inst| {
-            let token = Token {
-                token_type: TokenType::Identifier("to_string".to_owned()),
-                lexeme: "to_string".to_owned(),
-                line: 0,
-            };
-            if let Ok(result) = inst.get(es, &token) {
-                result
-                    .with_callable(
-                        |callable| callable.call(es, vec![]),
-                        || error(&token, "to_string() isn't callable"),
-                    )
-                    .map(|r| r.to_string())
-            } else {
-                Ok(inst.borrow().to_string())
-            }
-        },
-        || Ok(value.to_string()),
-    )?;
-    println!("{}", output);
+    println!("{}", value.convert_to_string(es, token)?);
     Ok(InterpreterFlowControl::default())
 }
 
