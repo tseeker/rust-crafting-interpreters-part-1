@@ -117,7 +117,7 @@ fn dump_statement(dumper: &mut Dumper, stmt: &StmtNode) {
             dumper.integrate("", dump_expression(expr), ";");
         }
 
-        StmtNode::Print(expr) => {
+        StmtNode::Print(_, expr) => {
             dumper.integrate("print ", dump_expression(expr), ";");
         }
 

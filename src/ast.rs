@@ -55,7 +55,7 @@ pub enum StmtNode {
     /// An single expression
     Expression(ExprNode),
     /// The print statement
-    Print(ExprNode),
+    Print(Token, ExprNode),
     /// A block containing multiple statements.
     Block(Vec<StmtNode>),
     /// A conditional statement.

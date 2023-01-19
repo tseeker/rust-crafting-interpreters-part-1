@@ -152,7 +152,7 @@ impl Interpretable for StmtNode {
             StmtNode::FunDecl(decl) => on_fun_decl(es, decl),
             StmtNode::ClassDecl(decl) => on_class_decl(es, decl),
             StmtNode::Expression(expr) => expr.interpret(es),
-            StmtNode::Print(expr) => on_print(es, expr),
+            StmtNode::Print(_, expr) => on_print(es, expr),
             StmtNode::Block(statements) => on_block(es, statements),
             StmtNode::If {
                 condition,

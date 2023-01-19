@@ -178,10 +178,10 @@ impl Parser {
             self.parse_loop_control_statement(&lcs)
         } else if let Some(ret) = self.expect(&[TokenType::Return]) {
             self.parse_return_statement(&ret)
-        } else if self.expect(&[TokenType::Print]).is_some() {
+        } else if let Some(print) = self.expect(&[TokenType::Print]) {
             let expression = self.parse_expression()?;
             self.consume(&TokenType::Semicolon, "expected ';' after value")?;
-            Ok(StmtNode::Print(expression))
+            Ok(StmtNode::Print(print, expression))
         } else {
             self.parse_expression_stmt()
         }

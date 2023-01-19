@@ -522,7 +522,7 @@ impl VarResolver for StmtNode {
             },
 
             StmtNode::Expression(expr) => expr.resolve(rs),
-            StmtNode::Print(expr) => expr.resolve(rs),
+            StmtNode::Print(_, expr) => expr.resolve(rs),
             StmtNode::LoopControl {
                 is_break: _,
                 loop_name: _,
