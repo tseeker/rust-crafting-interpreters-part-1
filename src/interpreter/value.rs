@@ -1,10 +1,17 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
+use lazy_static::lazy_static;
+
+use crate::{
+    errors::{ErrorKind, SloxError, SloxResult},
+    tokens::{Token, TokenType},
+};
+
 use super::{
     classes::{Class, ClassRef, Instance, InstanceRef, PropertyCarrier},
     functions::Function,
     native_fn::NativeFunction,
-    Callable,
+    Callable, InterpreterState,
 };
 
 /// A value being handled by the interpreter.
@@ -23,6 +30,17 @@ pub enum Object {
     LoxFunction(Function),
     Class(ClassRef),
     Instance(InstanceRef),
+}
+
+lazy_static! {
+    static ref TO_STRING_TOKEN: Token = {
+        let name = "to_string".to_owned();
+        Token {
+            token_type: TokenType::Identifier(name.clone()),
+            lexeme: name,
+            line: 0,
+        }
+    };
 }
 
 /* -------------------- *
@@ -105,6 +123,36 @@ impl Value {
             Object::Instance(inst) => fok(inst),
             _ => ferr(),
         }
+    }
+
+    /// Convert a value into a string. This can only be done fully with an interpreter state,
+    /// because it might require calling an instance's to_string method.
+    pub fn convert_to_string(
+        &self,
+        es: &mut InterpreterState,
+        at_token: &Token,
+    ) -> SloxResult<String> {
+        self.with_instance(
+            |inst| {
+                if let Ok(result) = inst.get(es, &TO_STRING_TOKEN) {
+                    result
+                        .with_callable(
+                            |callable| callable.call(es, vec![]),
+                            || {
+                                Err(SloxError::with_token(
+                                    ErrorKind::Runtime,
+                                    at_token,
+                                    "to_string() isn't callable".to_owned(),
+                                ))
+                            },
+                        )
+                        .map(|r| r.to_string())
+                } else {
+                    Ok(inst.borrow().to_string())
+                }
+            },
+            || Ok(self.to_string()),
+        )
     }
 }
 
