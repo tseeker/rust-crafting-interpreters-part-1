@@ -6,6 +6,7 @@ use crate::{
         VariableExpr,
     },
     errors::{ErrorKind, SloxError, SloxResult},
+    interpreter::classes::PropertyCarrier,
     resolver::ResolvedVariables,
     tokens::{Token, TokenType},
 };
@@ -250,7 +251,26 @@ fn extract_members(
 /// Handle the `print` statement.
 fn on_print(es: &mut InterpreterState, expr: &ExprNode) -> InterpreterResult {
     let value = expr.interpret(es)?.result();
-    let output = value.to_string();
+    let output = value.with_instance(
+        |inst| {
+            let token = Token {
+                token_type: TokenType::Identifier("to_string".to_owned()),
+                lexeme: "to_string".to_owned(),
+                line: 0,
+            };
+            if let Ok(result) = inst.get(es, &token) {
+                result
+                    .with_callable(
+                        |callable| callable.call(es, vec![]),
+                        || error(&token, "to_string() isn't callable"),
+                    )
+                    .map(|r| r.to_string())
+            } else {
+                Ok(inst.borrow().to_string())
+            }
+        },
+        || Ok(value.to_string()),
+    )?;
     println!("{}", output);
     Ok(InterpreterFlowControl::default())
 }
