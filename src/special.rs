@@ -39,12 +39,6 @@ lazy_static! {
                 min_args: 0,
                 max_args: 0,
             },
-            SpecialCharacteristics {
-                which: SpecialClassMember::Compare,
-                identifier: "compare",
-                min_args: 1,
-                max_args: 1,
-            },
         ];
         characteristics.into_iter().map(|c| (c.which, c)).collect()
     };
